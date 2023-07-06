@@ -33,6 +33,7 @@ pub(crate) struct RusFarmApp {
     bg: BgImage,
     rascal_img: Option<eframe::egui::TextureHandle>,
     rascals: Vec<Rascal>,
+    last_animate: Option<std::time::Instant>,
 }
 
 impl RusFarmApp {
@@ -41,6 +42,7 @@ impl RusFarmApp {
             bg: BgImage::new(),
             rascal_img: None,
             rascals: (0..2).map(|_| Rascal::new()).collect(),
+            last_animate: None,
         }
     }
 
@@ -131,12 +133,12 @@ impl RusFarmApp {
                 if rascal.pos.x < 0. {
                     rascal.pos.x = 0.;
                 } else if BOARD_SIZE as f32 <= rascal.pos.x {
-                    rascal.pos.x = BOARD_SIZE as f32;
+                    rascal.pos.x = (BOARD_SIZE - 1) as f32;
                 }
                 if rascal.pos.y < 0. {
                     rascal.pos.y = 0.;
                 } else if BOARD_SIZE as f32 <= rascal.pos.y {
-                    rascal.pos.y = BOARD_SIZE as f32;
+                    rascal.pos.y = (BOARD_SIZE - 1) as f32;
                 }
             }
         }
@@ -145,8 +147,15 @@ impl RusFarmApp {
 
 impl eframe::App for RusFarmApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
-        ctx.request_repaint();
-        self.animate();
+        ctx.request_repaint_after(std::time::Duration::from_secs(1));
+        let now = std::time::Instant::now();
+        if !self
+            .last_animate
+            .is_some_and(|time| !(std::time::Duration::from_secs(1) < now - time))
+        {
+            self.animate();
+            self.last_animate = Some(now);
+        }
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
             Frame::canvas(ui.style()).show(ui, |ui| {
                 let (response, painter) =
