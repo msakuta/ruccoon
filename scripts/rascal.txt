@@ -1,0 +1,7 @@
+
+for i in 0 to 10000 {
+
+    print("Hello", get_x(), get_y());
+
+    yield 0;
+}

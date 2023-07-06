@@ -9,3 +9,5 @@ edition = "2021"
 eframe = "0.22.0"
 image = "0.24.6"
 rand = "0.8.5"
+# ruscal = { path = "../ruscal" }
+ruscal = { git = "https://github.com/msakuta/ruscal.git" }

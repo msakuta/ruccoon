@@ -1,5 +1,6 @@
 mod app;
 mod bg_image;
+mod rascal;
 
 use app::RusFarmApp;
 
