@@ -9,7 +9,7 @@ use ruscal::{
     file_io::parse_program,
     type_checker::{type_check, TypeCheckContext},
     value::Value,
-    vm::Vm,
+    vm::{Vm, YieldResult},
     Args,
 };
 
@@ -51,7 +51,23 @@ impl Rascal {
             Vec2::new(1., 0.),
             Vec2::new(0., 1.),
         ];
-        if let Some(direction) = DIRECTIONS.choose(&mut rand::thread_rng()) {
+
+        if self.vm.top().is_err() {
+            if let Err(e) = self.vm.init_fn("main", &[]) {
+                eprintln!("Error in rascal {}: init_fn: {e}", self.id);
+            }
+        }
+
+        let direction_code = match self.vm.interpret() {
+            Ok(YieldResult::Finished(_)) => None,
+            Ok(YieldResult::Suspend(res)) => res.coerce_i64().ok(),
+            Err(e) => {
+                eprintln!("Error in rascal {}: {e}", self.id);
+                None
+            }
+        };
+
+        if let Some(direction) = direction_code.and_then(|code| DIRECTIONS.get(code as usize)) {
             let mut state = self.state.borrow_mut();
             state.pos += *direction;
             if state.pos.x < 0. {
@@ -64,16 +80,6 @@ impl Rascal {
             } else if BOARD_SIZE as f32 <= state.pos.y {
                 state.pos.y = (BOARD_SIZE - 1) as f32;
             }
-        }
-
-        if self.vm.top().is_err() {
-            if let Err(e) = self.vm.init_fn("main", &[]) {
-                eprintln!("Error in rascal {}: init_fn: {e}", self.id);
-            }
-        }
-
-        if let Err(e) = self.vm.interpret() {
-            eprintln!("Error in rascal {}: {e}", self.id);
         }
     }
 }
