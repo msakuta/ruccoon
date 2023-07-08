@@ -1,10 +1,11 @@
-use std::{cell::RefCell, error::Error, rc::Rc};
+mod render_bg;
+
+use std::{cell::RefCell, rc::Rc};
 
 use eframe::{
-    egui::{self, Frame, Painter, Response},
-    epaint::{pos2, Color32, ColorImage, PathShape, Pos2, Rect},
+    egui::{self, Frame},
+    epaint::{pos2, Pos2},
 };
-use image::{io::Reader as ImageReader, ImageError};
 
 use rand::Rng;
 use ruscal::{parse_args, Args};
@@ -19,15 +20,21 @@ pub(crate) const CELL_SIZE_F: f32 = CELL_SIZE as f32;
 pub(crate) const BOARD_SIZE: usize = 12;
 pub(crate) const BOARD_SIZE_I: i32 = BOARD_SIZE as i32;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MapCell {
     Wall,
     Empty,
 }
 
+impl MapCell {
+    fn is_wall(&self) -> bool {
+        matches!(self, Self::Wall)
+    }
+}
+
 pub(crate) struct RusFarmApp {
     bg: BgImage,
-    bg2: BgImage,
+    wall_img: Option<egui::TextureHandle>,
     map: Rc<Vec<MapCell>>,
     rascal_img: Option<egui::TextureHandle>,
     rascals: Vec<Rascal>,
@@ -64,7 +71,7 @@ impl RusFarmApp {
         let items = Rc::new(RefCell::new(vec![]));
         Self {
             bg: BgImage::new(),
-            bg2: BgImage::new(),
+            wall_img: None,
             map: map.clone(),
             rascal_img: None,
             rascals: (0..2)
@@ -74,104 +81,6 @@ impl RusFarmApp {
             items,
             last_animate: None,
         }
-    }
-
-    fn render_bg(
-        &mut self,
-        response: &Response,
-        painter: &Painter,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        for y in 0..BOARD_SIZE {
-            for x in 0..BOARD_SIZE {
-                let (bg, file_name) = match self.map[x + BOARD_SIZE * y] {
-                    MapCell::Empty => (&mut self.bg, "assets/dirt.png"),
-                    MapCell::Wall => (&mut self.bg2, "assets/wall.png"),
-                };
-                bg.paint(
-                    &response,
-                    &painter,
-                    (),
-                    |_| -> Result<ColorImage, ImageError> {
-                        let img = ImageReader::open(file_name)?.decode()?.into_rgb8();
-                        let width = img.width();
-                        let height = img.height();
-                        let data: Vec<_> = img.to_vec();
-                        Ok(eframe::egui::ColorImage::from_rgb(
-                            [width as usize, height as usize],
-                            &data,
-                        ))
-                    },
-                    [x as f32 * CELL_SIZE_F, y as f32 * CELL_SIZE_F],
-                    CELL_SIZE_F / 32.,
-                )?;
-            }
-        }
-
-        fn try_insert_with<'a>(
-            target: &'a mut Option<egui::TextureHandle>,
-            file_name: &str,
-            painter: &Painter,
-        ) -> Option<&'a egui::TextureHandle> {
-            if target.is_none() {
-                *target = match try_load_image(file_name, painter) {
-                    Ok(res) => Some(res),
-                    Err(e) => {
-                        eprintln!("try_load_image({}) failed: {e}", file_name);
-                        None
-                    }
-                };
-            }
-            target.as_ref()
-        }
-
-        let to_screen = egui::emath::RectTransform::from_to(
-            Rect::from_min_size(Pos2::ZERO, response.rect.size()),
-            response.rect,
-        );
-
-        if let Some(texture) = try_insert_with(&mut self.rascal_img, "assets/rascal.png", painter) {
-            let size = texture.size_vec2();
-            for rascal in &self.rascals {
-                let state = rascal.state.borrow();
-                let min = state.pos.to_vec2() * CELL_SIZE_F;
-                let max = min + size;
-                let rect = Rect {
-                    min: min.to_pos2(),
-                    max: max.to_pos2(),
-                };
-                const UV: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-                painter.image(texture.id(), to_screen.transform_rect(rect), UV, state.tint);
-
-                if let Some(path) = &state.path {
-                    let plot: Vec<_> = path
-                        .iter()
-                        .map(|node| to_screen.transform_pos(Pos2::from(node)))
-                        .collect();
-                    painter.add(PathShape::line(plot, (3., state.tint)));
-                }
-            }
-        }
-
-        if let Some(texture) = try_insert_with(&mut self.corn_img, "assets/corn.png", painter) {
-            let size = texture.size_vec2();
-            for item in self.items.borrow().iter() {
-                let min = item.to_vec2() * CELL_SIZE_F;
-                let max = min + size;
-                let rect = Rect {
-                    min: min.to_pos2(),
-                    max: max.to_pos2(),
-                };
-                const UV: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-                painter.image(
-                    texture.id(),
-                    to_screen.transform_rect(rect),
-                    UV,
-                    Color32::WHITE,
-                );
-            }
-        }
-
-        Ok(())
     }
 
     fn animate(&mut self) {
@@ -200,11 +109,11 @@ impl RusFarmApp {
 
 impl eframe::App for RusFarmApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
-        ctx.request_repaint_after(std::time::Duration::from_secs(1));
+        ctx.request_repaint_after(std::time::Duration::from_millis(100));
         let now = std::time::Instant::now();
         if !self
             .last_animate
-            .is_some_and(|time| !(std::time::Duration::from_secs(1) < now - time))
+            .is_some_and(|time| !(std::time::Duration::from_millis(100) < now - time))
         {
             self.animate();
             self.last_animate = Some(now);
@@ -220,26 +129,6 @@ impl eframe::App for RusFarmApp {
             });
         });
     }
-}
-
-fn try_load_image(
-    file_name: &str,
-    painter: &Painter,
-) -> Result<egui::TextureHandle, Box<dyn Error>> {
-    let img = ImageReader::open(file_name)?.decode()?.into_rgba8();
-    let width = img.width();
-    let height = img.height();
-    let data: Vec<_> = img.to_vec();
-    let color_image =
-        egui::ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &data);
-    Ok(painter.ctx().load_texture(
-        "rascal",
-        color_image,
-        egui::TextureOptions {
-            magnification: egui::TextureFilter::Nearest,
-            minification: egui::TextureFilter::Linear,
-        },
-    ))
 }
 
 fn is_blocked(pos: Pos2, map: &[MapCell], items: &[Pos2]) -> bool {
