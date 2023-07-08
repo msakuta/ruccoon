@@ -25,7 +25,7 @@ const DIRECTIONS: [Vec2; 4] = [
 pub(crate) struct Rascal {
     id: usize,
     pub(crate) state: Rc<RefCell<RascalState>>,
-    vm: Vm,
+    vm: Rc<RefCell<Vm>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -69,28 +69,25 @@ impl Rascal {
         Self {
             id,
             state: state.clone(),
-            vm: Vm::new(
+            vm: Rc::new(RefCell::new(Vm::new(
                 bytecode.clone(),
                 Box::new(VmUserData {
                     state,
                     items: items.clone(),
                 }),
-            ),
+            ))),
         }
     }
 
-    pub(crate) fn animate(
-        &mut self,
-        others: &[Rc<RefCell<Rascal>>],
-        items: &Rc<RefCell<Vec<Pos2>>>,
-    ) {
-        if self.vm.top().is_err() {
-            if let Err(e) = self.vm.init_fn("main", &[]) {
+    pub(crate) fn animate(&self, others: &[Rascal], items: &Rc<RefCell<Vec<Pos2>>>) {
+        let mut vm = self.vm.borrow_mut();
+        if vm.top().is_err() {
+            if let Err(e) = vm.init_fn("main", &[]) {
                 eprintln!("Error in rascal {}: init_fn: {e}", self.id);
             }
         }
 
-        let direction_code = match self.vm.interpret() {
+        let direction_code = match vm.interpret() {
             Ok(YieldResult::Finished(_)) => None,
             Ok(YieldResult::Suspend(res)) => res.coerce_i64().ok(),
             Err(e) => {
@@ -103,7 +100,6 @@ impl Rascal {
             let mut state = self.state.borrow_mut();
             let pos = state.pos + *direction;
             if others.iter().all(|other| {
-                let Ok(other) = other.try_borrow() else { return true };
                 let Ok(other_state) = other.state.try_borrow() else { return true };
                 other_state.pos != pos
             }) {

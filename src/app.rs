@@ -22,7 +22,7 @@ pub(crate) const BOARD_SIZE_I: i32 = BOARD_SIZE as i32;
 pub(crate) struct RusFarmApp {
     bg: BgImage,
     rascal_img: Option<egui::TextureHandle>,
-    rascals: Vec<Rc<RefCell<Rascal>>>,
+    rascals: Vec<Rascal>,
     corn_img: Option<egui::TextureHandle>,
     items: Rc<RefCell<Vec<Pos2>>>,
     last_animate: Option<std::time::Instant>,
@@ -45,9 +45,7 @@ impl RusFarmApp {
         Self {
             bg: BgImage::new(),
             rascal_img: None,
-            rascals: (0..2)
-                .map(|i| Rc::new(RefCell::new(Rascal::new(i, &items, &program))))
-                .collect(),
+            rascals: (0..2).map(|i| Rascal::new(i, &items, &program)).collect(),
             corn_img: None,
             items,
             last_animate: None,
@@ -107,7 +105,6 @@ impl RusFarmApp {
         if let Some(texture) = try_insert_with(&mut self.rascal_img, "assets/rascal.png", painter) {
             let size = texture.size_vec2();
             for rascal in &self.rascals {
-                let rascal = rascal.borrow();
                 let state = rascal.state.borrow();
                 let min = state.pos.to_vec2() * CELL_SIZE_F;
                 let max = min + size;
@@ -149,7 +146,7 @@ impl RusFarmApp {
 
     fn animate(&mut self) {
         for rascal in &self.rascals {
-            rascal.borrow_mut().animate(&self.rascals, &self.items);
+            rascal.animate(&self.rascals, &self.items);
         }
 
         let mut rng = rand::thread_rng();
