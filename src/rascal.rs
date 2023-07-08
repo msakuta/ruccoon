@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::BinaryHeap, error::Error, rc::Rc};
+use std::{cell::RefCell, cmp::Reverse, collections::BinaryHeap, error::Error, rc::Rc};
 
 use eframe::epaint::{pos2, Color32, Pos2, Vec2};
 use rand::Rng;
@@ -246,13 +246,35 @@ fn find_path(start: [i32; 2], map: &[MapCell], items: &[Pos2]) -> Option<Vec<Pat
     println!("finding path for {items:?}");
     let mut cost_map = [i32::MAX; BOARD_SIZE * BOARD_SIZE];
     let mut came_from: [Option<u8>; BOARD_SIZE * BOARD_SIZE] = [None; BOARD_SIZE * BOARD_SIZE];
+
+    #[derive(Eq, Ord)]
+    struct MinCost {
+        pos: [i32; 2],
+        cost: i32,
+    }
+
+    impl PartialEq for MinCost {
+        fn eq(&self, other: &Self) -> bool {
+            self.cost.eq(&other.cost)
+        }
+    }
+
+    impl PartialOrd for MinCost {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            Reverse(self.cost).partial_cmp(&Reverse(other.cost))
+        }
+    }
+
     let mut open_set = BinaryHeap::new();
-    open_set.push(start);
+    open_set.push(MinCost {
+        pos: start,
+        cost: 0,
+    });
     cost_map[(start[0] + start[1] * BOARD_SIZE_I) as usize] = 0;
     while let Some(state) = open_set.pop() {
         if let Some(goal) = items
             .iter()
-            .find(|item| [item.x as i32, item.y as i32] == state)
+            .find(|item| [item.x as i32, item.y as i32] == state.pos)
         {
             let mut path = vec![PathNode {
                 direction: 5,
@@ -272,9 +294,9 @@ fn find_path(start: [i32; 2], map: &[MapCell], items: &[Pos2]) -> Option<Vec<Pat
             println!("find_path returning {path:?}");
             return Some(path);
         }
-        let prev_cost = cost_map[(state[0] + state[1] * BOARD_SIZE_I) as usize];
+        let prev_cost = state.cost;
         for (direction, next) in DIRECTIONS.iter().enumerate() {
-            let next = [state[0] + next.x as i32, state[1] + next.y as i32];
+            let next = [state.pos[0] + next.x as i32, state.pos[1] + next.y as i32];
             if next[0] < 0 || BOARD_SIZE_I <= next[0] || next[1] < 0 || BOARD_SIZE_I <= next[1] {
                 continue;
             }
@@ -284,7 +306,10 @@ fn find_path(start: [i32; 2], map: &[MapCell], items: &[Pos2]) -> Option<Vec<Pat
             }
             let cost_cell = &mut cost_map[idx];
             if prev_cost + 1 < *cost_cell {
-                open_set.push(next);
+                open_set.push(MinCost {
+                    pos: next,
+                    cost: prev_cost + 1,
+                });
                 *cost_cell = prev_cost + 1;
                 came_from[idx] = Some(((direction + 2) % 4) as u8);
             }
