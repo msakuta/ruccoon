@@ -1,8 +1,8 @@
-use std::{error::Error, rc::Rc};
+use std::{cell::RefCell, error::Error, rc::Rc};
 
 use eframe::{
     egui::{self, Frame, Painter, Response},
-    epaint::{pos2, Color32, ColorImage, Pos2, Rect},
+    epaint::{pos2, Color32, ColorImage, PathShape, Pos2, Rect},
 };
 use image::{io::Reader as ImageReader, ImageError};
 
@@ -14,16 +14,17 @@ use crate::{
     rascal::{compile_program, Rascal},
 };
 
-const CELL_SIZE: usize = 64;
-const CELL_SIZE_F: f32 = CELL_SIZE as f32;
+pub(crate) const CELL_SIZE: usize = 64;
+pub(crate) const CELL_SIZE_F: f32 = CELL_SIZE as f32;
 pub(crate) const BOARD_SIZE: usize = 12;
+pub(crate) const BOARD_SIZE_I: i32 = BOARD_SIZE as i32;
 
 pub(crate) struct RusFarmApp {
     bg: BgImage,
     rascal_img: Option<egui::TextureHandle>,
-    rascals: Vec<Rascal>,
+    rascals: Vec<Rc<RefCell<Rascal>>>,
     corn_img: Option<egui::TextureHandle>,
-    items: Vec<Pos2>,
+    items: Rc<RefCell<Vec<Pos2>>>,
     last_animate: Option<std::time::Instant>,
 }
 
@@ -40,12 +41,15 @@ impl RusFarmApp {
             Err(e) => panic!("Compile error: {e}"),
         };
         let program = Rc::new(bytecode);
+        let items = Rc::new(RefCell::new(vec![]));
         Self {
             bg: BgImage::new(),
             rascal_img: None,
-            rascals: (0..2).map(|i| Rascal::new(i, &program)).collect(),
+            rascals: (0..2)
+                .map(|i| Rc::new(RefCell::new(Rascal::new(i, &items, &program))))
+                .collect(),
             corn_img: None,
-            items: vec![],
+            items,
             last_animate: None,
         }
     }
@@ -103,6 +107,7 @@ impl RusFarmApp {
         if let Some(texture) = try_insert_with(&mut self.rascal_img, "assets/rascal.png", painter) {
             let size = texture.size_vec2();
             for rascal in &self.rascals {
+                let rascal = rascal.borrow();
                 let state = rascal.state.borrow();
                 let min = state.pos.to_vec2() * CELL_SIZE_F;
                 let max = min + size;
@@ -112,12 +117,17 @@ impl RusFarmApp {
                 };
                 const UV: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
                 painter.image(texture.id(), to_screen.transform_rect(rect), UV, state.tint);
+
+                if let Some(path) = &state.path {
+                    let plot: Vec<_> = path.iter().map(Pos2::from).collect();
+                    painter.add(PathShape::line(plot, (3., state.tint)));
+                }
             }
         }
 
         if let Some(texture) = try_insert_with(&mut self.corn_img, "assets/corn.png", painter) {
             let size = texture.size_vec2();
-            for item in &self.items {
+            for item in self.items.borrow().iter() {
                 let min = item.to_vec2() * CELL_SIZE_F;
                 let max = min + size;
                 let rect = Rect {
@@ -138,18 +148,19 @@ impl RusFarmApp {
     }
 
     fn animate(&mut self) {
-        for rascal in &mut self.rascals {
-            rascal.animate();
+        for rascal in &self.rascals {
+            rascal.borrow_mut().animate(&self.rascals, &self.items);
         }
 
         let mut rng = rand::thread_rng();
-        if self.items.len() < 10 && rng.gen::<f64>() < 0.1 {
+        if self.items.borrow().len() < 10 && rng.gen::<f64>() < 0.1 {
             let pos = pos2(
                 rng.gen_range(0..BOARD_SIZE) as f32,
                 rng.gen_range(0..BOARD_SIZE) as f32,
             );
-            if self.items.iter().all(|item| *item != pos) {
-                self.items.push(pos);
+            let mut items = self.items.borrow_mut();
+            if items.iter().all(|item| *item != pos) {
+                items.push(pos);
             }
         }
     }

@@ -1,11 +1,17 @@
 
 for i in 0 to 10000 {
 
-    print("Going left", get_x(), get_y());
+    print("Finding path");
 
-    yield 0;
+    if find_path() {
+        yield get_next_move();
+    } else {
+        print("Going left", get_x(), get_y());
 
-    print("Going right", get_x(), get_y());
+        yield 0;
 
-    yield 2;
+        print("Going right", get_x(), get_y());
+
+        yield 2;
+    }
 }
