@@ -1,7 +1,7 @@
 use eframe::{
     egui::{self, Painter, Response},
-    emath::RectTransform,
-    epaint::{Color32, ColorImage, PathShape, Pos2, Rect, Vec2},
+    emath::{Align2, RectTransform},
+    epaint::{Color32, ColorImage, FontId, PathShape, Pos2, Rect, Vec2},
 };
 use image::{io::Reader as ImageReader, ImageError};
 use std::error::Error;
@@ -70,6 +70,8 @@ impl RusFarmApp {
             target.as_ref()
         }
 
+        let font = FontId::proportional(18.);
+
         if let Some(texture) = try_insert_with(&mut self.rascal_img, "assets/rascal.png", painter) {
             let size = texture.size_vec2();
             for rascal in &self.rascals {
@@ -82,6 +84,13 @@ impl RusFarmApp {
                 };
                 const UV: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
                 painter.image(texture.id(), to_screen.transform_rect(rect), UV, state.tint);
+                painter.text(
+                    to_screen.transform_pos(rect.min),
+                    Align2::CENTER_TOP,
+                    state.ate,
+                    font.clone(),
+                    Color32::WHITE,
+                );
 
                 if let Some(path) = &state.path {
                     let plot: Vec<_> = path

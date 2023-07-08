@@ -47,6 +47,7 @@ pub(crate) struct RascalState {
     pub(crate) pos: Pos2,
     pub(crate) tint: Color32,
     pub(crate) path: Option<Vec<PathNode>>,
+    pub(crate) ate: usize,
 }
 
 struct VmUserData {
@@ -70,6 +71,7 @@ impl Rascal {
             ),
             tint: Color32::from_rgb(rng.gen(), rng.gen(), rng.gen()),
             path: None,
+            ate: 0,
         }));
 
         Self {
@@ -144,7 +146,7 @@ impl Rascal {
             }
         }
 
-        let state = self.state.borrow();
+        let mut state = self.state.borrow_mut();
         let mut items = items.borrow_mut();
         if let Some((i, _)) = items
             .iter()
@@ -152,6 +154,8 @@ impl Rascal {
             .find(|(_, item)| **item == state.pos)
         {
             items.remove(i);
+            state.ate += 1;
+            println!("Rascal {} ate {} corns", self.id, state.ate);
         }
     }
 }
@@ -232,7 +236,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn<'static>)) {
                 if let Some(data) = state.downcast_ref::<VmUserData>() {
                     let mut state = data.state.borrow_mut();
                     if let Some(node) = state.path.as_mut().and_then(|path| path.pop()) {
-                        println!("get_next_move returning {}", node.direction);
+                        // println!("get_next_move returning {}", node.direction);
                         return Value::I64(node.direction as i64);
                     }
                 }
@@ -243,7 +247,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn<'static>)) {
 }
 
 fn find_path(start: [i32; 2], map: &[MapCell], items: &[Pos2]) -> Option<Vec<PathNode>> {
-    println!("finding path for {items:?}");
+    // println!("finding path for {items:?}");
     let mut cost_map = [i32::MAX; BOARD_SIZE * BOARD_SIZE];
     let mut came_from: [Option<u8>; BOARD_SIZE * BOARD_SIZE] = [None; BOARD_SIZE * BOARD_SIZE];
 
@@ -291,7 +295,7 @@ fn find_path(start: [i32; 2], map: &[MapCell], items: &[Pos2]) -> Option<Vec<Pat
                 });
                 cur = [x as i32, y as i32];
             }
-            println!("find_path returning {path:?}");
+            // println!("find_path returning {path:?}");
             return Some(path);
         }
         let prev_cost = state.cost;
