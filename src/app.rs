@@ -143,7 +143,10 @@ impl RusFarmApp {
                 painter.image(texture.id(), to_screen.transform_rect(rect), UV, state.tint);
 
                 if let Some(path) = &state.path {
-                    let plot: Vec<_> = path.iter().map(Pos2::from).collect();
+                    let plot: Vec<_> = path
+                        .iter()
+                        .map(|node| to_screen.transform_pos(Pos2::from(node)))
+                        .collect();
                     painter.add(PathShape::line(plot, (3., state.tint)));
                 }
             }
