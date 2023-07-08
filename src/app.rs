@@ -19,8 +19,16 @@ pub(crate) const CELL_SIZE_F: f32 = CELL_SIZE as f32;
 pub(crate) const BOARD_SIZE: usize = 12;
 pub(crate) const BOARD_SIZE_I: i32 = BOARD_SIZE as i32;
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum MapCell {
+    Wall,
+    Empty,
+}
+
 pub(crate) struct RusFarmApp {
     bg: BgImage,
+    bg2: BgImage,
+    map: Rc<Vec<MapCell>>,
     rascal_img: Option<egui::TextureHandle>,
     rascals: Vec<Rascal>,
     corn_img: Option<egui::TextureHandle>,
@@ -36,6 +44,18 @@ impl RusFarmApp {
             args
         });
 
+        let mut map = vec![MapCell::Empty; BOARD_SIZE * BOARD_SIZE];
+        for i in 0..BOARD_SIZE {
+            for j in 0..BOARD_SIZE {
+                map[i + BOARD_SIZE * j] = if rand::random::<f32>() < 0.25 {
+                    MapCell::Wall
+                } else {
+                    MapCell::Empty
+                };
+            }
+        }
+        let map = Rc::new(map);
+
         let bytecode = match compile_program(&args) {
             Ok(bytecode) => bytecode,
             Err(e) => panic!("Compile error: {e}"),
@@ -44,8 +64,12 @@ impl RusFarmApp {
         let items = Rc::new(RefCell::new(vec![]));
         Self {
             bg: BgImage::new(),
+            bg2: BgImage::new(),
+            map: map.clone(),
             rascal_img: None,
-            rascals: (0..2).map(|i| Rascal::new(i, &items, &program)).collect(),
+            rascals: (0..2)
+                .map(|i| Rascal::new(i, &map, &items, &program))
+                .collect(),
             corn_img: None,
             items,
             last_animate: None,
@@ -57,10 +81,13 @@ impl RusFarmApp {
         response: &Response,
         painter: &Painter,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let file_name = "assets/dirt.png";
         for y in 0..BOARD_SIZE {
             for x in 0..BOARD_SIZE {
-                self.bg.paint(
+                let (bg, file_name) = match self.map[x + BOARD_SIZE * y] {
+                    MapCell::Empty => (&mut self.bg, "assets/dirt.png"),
+                    MapCell::Wall => (&mut self.bg2, "assets/wall.png"),
+                };
+                bg.paint(
                     &response,
                     &painter,
                     (),
@@ -146,15 +173,20 @@ impl RusFarmApp {
 
     fn animate(&mut self) {
         for rascal in &self.rascals {
-            rascal.animate(&self.rascals, &self.items);
+            rascal.animate(&self.rascals, &self.map, &self.items);
         }
 
         let mut rng = rand::thread_rng();
         if self.items.borrow().len() < 10 && rng.gen::<f64>() < 0.1 {
-            let pos = pos2(
-                rng.gen_range(0..BOARD_SIZE) as f32,
-                rng.gen_range(0..BOARD_SIZE) as f32,
-            );
+            let pos = loop {
+                let pos = pos2(
+                    rng.gen_range(0..BOARD_SIZE) as f32,
+                    rng.gen_range(0..BOARD_SIZE) as f32,
+                );
+                if !is_blocked(pos, &self.map, &self.items.borrow()) {
+                    break pos;
+                }
+            };
             let mut items = self.items.borrow_mut();
             if items.iter().all(|item| *item != pos) {
                 items.push(pos);
@@ -205,4 +237,17 @@ fn try_load_image(
             minification: egui::TextureFilter::Linear,
         },
     ))
+}
+
+fn is_blocked(pos: Pos2, map: &[MapCell], items: &[Pos2]) -> bool {
+    if !matches!(
+        map[pos.x as usize + pos.y as usize * BOARD_SIZE],
+        MapCell::Empty
+    ) {
+        return true;
+    }
+    if items.iter().any(|item| *item == pos) {
+        return true;
+    }
+    false
 }

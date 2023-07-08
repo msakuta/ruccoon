@@ -13,7 +13,7 @@ use ruscal::{
     Args,
 };
 
-use crate::app::{BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F};
+use crate::app::{MapCell, BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F};
 
 const DIRECTIONS: [Vec2; 4] = [
     Vec2::new(-1., 0.),
@@ -51,11 +51,17 @@ pub(crate) struct RascalState {
 
 struct VmUserData {
     state: Rc<RefCell<RascalState>>,
+    map: Rc<Vec<MapCell>>,
     items: Rc<RefCell<Vec<Pos2>>>,
 }
 
 impl Rascal {
-    pub(crate) fn new(id: usize, items: &Rc<RefCell<Vec<Pos2>>>, bytecode: &Rc<ByteCode>) -> Self {
+    pub(crate) fn new(
+        id: usize,
+        map: &Rc<Vec<MapCell>>,
+        items: &Rc<RefCell<Vec<Pos2>>>,
+        bytecode: &Rc<ByteCode>,
+    ) -> Self {
         let mut rng = rand::thread_rng();
         let state = Rc::new(RefCell::new(RascalState {
             pos: pos2(
@@ -73,13 +79,19 @@ impl Rascal {
                 bytecode.clone(),
                 Box::new(VmUserData {
                     state,
+                    map: map.clone(),
                     items: items.clone(),
                 }),
             ))),
         }
     }
 
-    pub(crate) fn animate(&self, others: &[Rascal], items: &Rc<RefCell<Vec<Pos2>>>) {
+    pub(crate) fn animate(
+        &self,
+        others: &[Rascal],
+        map: &Rc<Vec<MapCell>>,
+        items: &Rc<RefCell<Vec<Pos2>>>,
+    ) {
         let mut vm = self.vm.borrow_mut();
         if vm.top().is_err() {
             if let Err(e) = vm.init_fn("main", &[]) {
@@ -96,24 +108,39 @@ impl Rascal {
             }
         };
 
+        let is_blocked = |pos: Pos2| {
+            if !matches!(
+                map[pos.x as usize + pos.y as usize * BOARD_SIZE],
+                MapCell::Empty
+            ) {
+                return true;
+            }
+            if others.iter().any(|other| {
+                let Ok(other_state) = other.state.try_borrow() else { return false };
+                other_state.pos == pos
+            }) {
+                return true;
+            }
+            false
+        };
+
         if let Some(direction) = direction_code.and_then(|code| DIRECTIONS.get(code as usize)) {
             let mut state = self.state.borrow_mut();
-            let pos = state.pos + *direction;
-            if others.iter().all(|other| {
-                let Ok(other_state) = other.state.try_borrow() else { return true };
-                other_state.pos != pos
-            }) {
-                state.pos += *direction;
-                if state.pos.x < 0. {
-                    state.pos.x = 0.;
-                } else if BOARD_SIZE as f32 <= state.pos.x {
-                    state.pos.x = (BOARD_SIZE - 1) as f32;
-                }
-                if state.pos.y < 0. {
-                    state.pos.y = 0.;
-                } else if BOARD_SIZE as f32 <= state.pos.y {
-                    state.pos.y = (BOARD_SIZE - 1) as f32;
-                }
+            let mut pos = state.pos + *direction;
+
+            if pos.x < 0. {
+                pos.x = 0.;
+            } else if BOARD_SIZE as f32 <= pos.x {
+                pos.x = (BOARD_SIZE - 1) as f32;
+            }
+            if pos.y < 0. {
+                pos.y = 0.;
+            } else if BOARD_SIZE as f32 <= pos.y {
+                pos.y = (BOARD_SIZE - 1) as f32;
+            }
+
+            if !is_blocked(pos) {
+                state.pos = pos;
             }
         }
 
@@ -186,6 +213,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn<'static>)) {
                     let mut state = data.state.borrow_mut();
                     state.path = find_path(
                         [state.pos.x as i32, state.pos.y as i32],
+                        &data.map,
                         &data.items.borrow(),
                     );
                     Value::I64(state.path.is_some() as i64)
@@ -214,7 +242,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn<'static>)) {
     )
 }
 
-fn find_path(start: [i32; 2], items: &[Pos2]) -> Option<Vec<PathNode>> {
+fn find_path(start: [i32; 2], map: &[MapCell], items: &[Pos2]) -> Option<Vec<PathNode>> {
     println!("finding path for {items:?}");
     let mut cost_map = [i32::MAX; BOARD_SIZE * BOARD_SIZE];
     let mut came_from: [Option<u8>; BOARD_SIZE * BOARD_SIZE] = [None; BOARD_SIZE * BOARD_SIZE];
@@ -251,6 +279,9 @@ fn find_path(start: [i32; 2], items: &[Pos2]) -> Option<Vec<PathNode>> {
                 continue;
             }
             let idx = (next[0] + next[1] * BOARD_SIZE_I) as usize;
+            if !matches!(map[idx], MapCell::Empty) {
+                continue;
+            }
             let cost_cell = &mut cost_map[idx];
             if prev_cost + 1 < *cost_cell {
                 open_set.push(next);
