@@ -72,6 +72,20 @@ impl RusFarmApp {
 
         let font = FontId::proportional(18.);
 
+        if let Some(texture) = try_insert_with(&mut self.hole_img, "assets/hole.png", painter) {
+            let rect = Rect::from_min_size(
+                (self.hole.to_vec2() * CELL_SIZE_F).to_pos2(),
+                Vec2::splat(CELL_SIZE_F),
+            );
+            const UV: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+            painter.image(
+                texture.id(),
+                to_screen.transform_rect(rect),
+                UV,
+                Color32::WHITE,
+            );
+        }
+
         if let Some(texture) = try_insert_with(&mut self.rascal_img, "assets/rascal.png", painter) {
             let size = texture.size_vec2();
             for rascal in &self.rascals {

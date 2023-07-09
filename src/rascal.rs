@@ -54,6 +54,7 @@ struct VmUserData {
     state: Rc<RefCell<RascalState>>,
     map: Rc<Vec<MapCell>>,
     items: Rc<RefCell<Vec<Pos2>>>,
+    hole: Pos2,
 }
 
 impl Rascal {
@@ -61,6 +62,7 @@ impl Rascal {
         id: usize,
         map: &Rc<Vec<MapCell>>,
         items: &Rc<RefCell<Vec<Pos2>>>,
+        hole: Pos2,
         bytecode: &Rc<ByteCode>,
         debug_output: bool,
     ) -> Self {
@@ -84,6 +86,7 @@ impl Rascal {
                     state,
                     map: map.clone(),
                     items: items.clone(),
+                    hole,
                 }),
                 debug_output,
             ))),
@@ -227,6 +230,41 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn<'static>)) {
                         &data.items.borrow(),
                     );
                     Value::I64(state.path.is_some() as i64)
+                } else {
+                    Value::I64(0)
+                }
+            }),
+        ),
+    );
+    proc(
+        "find_path_to_hole".to_string(),
+        NativeFn::new(
+            vec![],
+            TypeDecl::I64,
+            Box::new(move |state, _| {
+                if let Some(data) = state.downcast_ref::<VmUserData>() {
+                    let mut state = data.state.borrow_mut();
+                    state.path = find_path(
+                        [state.pos.x as i32, state.pos.y as i32],
+                        &data.map,
+                        &data.items.borrow(),
+                    );
+                    Value::I64(state.path.is_some() as i64)
+                } else {
+                    Value::I64(0)
+                }
+            }),
+        ),
+    );
+    proc(
+        "is_at_hole".to_string(),
+        NativeFn::new(
+            vec![],
+            TypeDecl::I64,
+            Box::new(move |state, _| {
+                if let Some(data) = state.downcast_ref::<VmUserData>() {
+                    let state = data.state.borrow();
+                    Value::I64((state.pos == data.hole) as i64)
                 } else {
                     Value::I64(0)
                 }

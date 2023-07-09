@@ -40,7 +40,10 @@ pub(crate) struct RusFarmApp {
     rascals: Vec<Rascal>,
     corn_img: Option<egui::TextureHandle>,
     items: Rc<RefCell<Vec<Pos2>>>,
+    hole_img: Option<egui::TextureHandle>,
+    hole: Pos2,
     last_animate: Option<std::time::Instant>,
+    paused: bool,
 }
 
 impl RusFarmApp {
@@ -61,6 +64,7 @@ impl RusFarmApp {
                 };
             }
         }
+        let hole = generate_pos(|pos| is_blocked(pos, &map, &[]));
         let map = Rc::new(map);
 
         let bytecode = match compile_program(&args) {
@@ -75,30 +79,28 @@ impl RusFarmApp {
             map: map.clone(),
             rascal_img: None,
             rascals: (0..2)
-                .map(|i| Rascal::new(i, &map, &items, &program))
+                .map(|i| Rascal::new(i, &map, &items, hole, &program, args.debug_output))
                 .collect(),
             corn_img: None,
             items,
+            hole_img: None,
+            hole,
             last_animate: None,
+            paused: false,
         }
     }
 
     fn animate(&mut self) {
-        for rascal in &self.rascals {
-            rascal.animate(&self.rascals, &self.map, &self.items);
+        if !self.paused {
+            for rascal in &self.rascals {
+                rascal.animate(&self.rascals, &self.map, &self.items);
+            }
+            // self.paused = true;
         }
 
         let mut rng = rand::thread_rng();
         if self.items.borrow().len() < 10 && rng.gen::<f64>() < 0.1 {
-            let pos = loop {
-                let pos = pos2(
-                    rng.gen_range(0..BOARD_SIZE) as f32,
-                    rng.gen_range(0..BOARD_SIZE) as f32,
-                );
-                if !is_blocked(pos, &self.map, &self.items.borrow()) {
-                    break pos;
-                }
-            };
+            let pos = generate_pos(|pos| is_blocked(pos, &self.map, &self.items.borrow()));
             let mut items = self.items.borrow_mut();
             if items.iter().all(|item| *item != pos) {
                 items.push(pos);
@@ -142,4 +144,17 @@ fn is_blocked(pos: Pos2, map: &[MapCell], items: &[Pos2]) -> bool {
         return true;
     }
     false
+}
+
+fn generate_pos(blocked: impl Fn(Pos2) -> bool) -> Pos2 {
+    let mut rng = rand::thread_rng();
+    loop {
+        let pos = pos2(
+            rng.gen_range(0..BOARD_SIZE) as f32,
+            rng.gen_range(0..BOARD_SIZE) as f32,
+        );
+        if !blocked(pos) {
+            return pos;
+        }
+    }
 }

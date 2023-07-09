@@ -1,7 +1,22 @@
 
+fn go_to_hole() -> i64 {
+    print("Finding path to hole");
+
+    for i in 0 to 100 {
+        if is_at_hole() {
+            return 0;
+        };
+        if find_path_to_hole() {
+            yield get_next_move();
+        } else {
+            return 0;
+        }
+    }
+}
+
 for i in 0 to 10000 {
 
-    print("Finding path");
+    print("Finding path to corn");
 
     if find_path() {
         yield get_next_move();
@@ -13,5 +28,8 @@ for i in 0 to 10000 {
         print("Going right", get_x(), get_y());
 
         yield 2;
-    }
+    };
+
+    var res: i64 = go_to_hole();
+    print("go_to_hole: ", res);
 }
