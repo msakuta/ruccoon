@@ -62,6 +62,7 @@ impl Rascal {
         map: &Rc<Vec<MapCell>>,
         items: &Rc<RefCell<Vec<Pos2>>>,
         bytecode: &Rc<ByteCode>,
+        debug_output: bool,
     ) -> Self {
         let mut rng = rand::thread_rng();
         let state = Rc::new(RefCell::new(RascalState {
@@ -84,6 +85,7 @@ impl Rascal {
                     map: map.clone(),
                     items: items.clone(),
                 }),
+                debug_output,
             ))),
         }
     }
@@ -183,6 +185,10 @@ pub(crate) fn compile_program(args: &Args) -> Result<ByteCode, Box<dyn Error>> {
 
     let mut compiler = Compiler::new();
     compiler.compile(&ast)?;
+
+    if args.disasm {
+        compiler.disasm(&mut std::io::stdout())?;
+    }
 
     let mut bytecode = compiler.into_bytecode();
     extend_funcs(|name, func| bytecode.add_fn(name, func));

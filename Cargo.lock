@@ -2007,7 +2007,7 @@ checksum = "436b050e76ed2903236f032a59761c1eb99e1b0aead2c257922771dab1fc8c78"
 [[package]]
 name = "ruscal"
 version = "0.1.0"
-source = "git+https://github.com/msakuta/ruscal.git#1a6b44326c9c4df734e5f1c9a4c33b6c9949314f"
+source = "git+https://github.com/msakuta/ruscal.git#ae0731bfb27282c3d6242ed65e3ce26566dcc0d3"
 dependencies = [
  "nom",
  "nom_locate",
