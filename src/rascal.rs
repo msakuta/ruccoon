@@ -13,7 +13,7 @@ use ruscal::{
     Args,
 };
 
-use crate::app::{MapCell, BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F};
+use crate::app::{Hole, MapCell, BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F};
 
 const DIRECTIONS: [Vec2; 4] = [
     Vec2::new(-1., 0.),
@@ -54,7 +54,7 @@ struct VmUserData {
     state: Rc<RefCell<RascalState>>,
     map: Rc<Vec<MapCell>>,
     items: Rc<RefCell<Vec<Pos2>>>,
-    hole: Pos2,
+    holes: Rc<Vec<Hole>>,
 }
 
 impl Rascal {
@@ -62,7 +62,7 @@ impl Rascal {
         id: usize,
         map: &Rc<Vec<MapCell>>,
         items: &Rc<RefCell<Vec<Pos2>>>,
-        hole: Pos2,
+        holes: &Rc<Vec<Hole>>,
         bytecode: &Rc<ByteCode>,
         debug_output: bool,
     ) -> Self {
@@ -86,7 +86,7 @@ impl Rascal {
                     state,
                     map: map.clone(),
                     items: items.clone(),
-                    hole,
+                    holes: holes.clone(),
                 }),
                 debug_output,
             ))),
@@ -98,6 +98,7 @@ impl Rascal {
         others: &[Rascal],
         map: &Rc<Vec<MapCell>>,
         items: &Rc<RefCell<Vec<Pos2>>>,
+        holes: &Rc<Vec<Hole>>,
     ) {
         let mut vm = self.vm.borrow_mut();
         if vm.top().is_err() {
@@ -131,6 +132,7 @@ impl Rascal {
             false
         };
 
+        let prev_pos = self.state.borrow().pos;
         if let Some(direction) = direction_code.and_then(|code| DIRECTIONS.get(code as usize)) {
             let mut state = self.state.borrow_mut();
             let mut pos = state.pos + *direction;
@@ -161,6 +163,16 @@ impl Rascal {
             items.remove(i);
             state.ate += 1;
             println!("Rascal {} ate {} corns", self.id, state.ate);
+        }
+
+        if prev_pos != state.pos {
+            if let Some(hole) = holes.iter().find(|hole| prev_pos == hole.pos) {
+                hole.occupied.set(false);
+            }
+        }
+
+        if let Some(hole) = holes.iter().find(|hole| state.pos == hole.pos) {
+            hole.occupied.set(true);
         }
     }
 }
@@ -244,11 +256,19 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn<'static>)) {
             Box::new(move |state, _| {
                 if let Some(data) = state.downcast_ref::<VmUserData>() {
                     let mut state = data.state.borrow_mut();
-                    state.path = find_path(
-                        [state.pos.x as i32, state.pos.y as i32],
-                        &data.map,
-                        &data.items.borrow(),
-                    );
+                    let holes: Vec<_> = data
+                        .holes
+                        .iter()
+                        .filter_map(|hole| {
+                            if hole.occupied.get() {
+                                None
+                            } else {
+                                Some(hole.pos)
+                            }
+                        })
+                        .collect();
+                    state.path =
+                        find_path([state.pos.x as i32, state.pos.y as i32], &data.map, &holes);
                     Value::I64(state.path.is_some() as i64)
                 } else {
                     Value::I64(0)
@@ -264,7 +284,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn<'static>)) {
             Box::new(move |state, _| {
                 if let Some(data) = state.downcast_ref::<VmUserData>() {
                     let state = data.state.borrow();
-                    Value::I64((state.pos == data.hole) as i64)
+                    Value::I64((data.holes.iter().any(|hole| state.pos == hole.pos)) as i64)
                 } else {
                     Value::I64(0)
                 }

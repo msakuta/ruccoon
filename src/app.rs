@@ -1,6 +1,9 @@
 mod render_bg;
 
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use eframe::{
     egui::{self, Frame},
@@ -32,6 +35,11 @@ impl MapCell {
     }
 }
 
+pub(crate) struct Hole {
+    pub pos: Pos2,
+    pub occupied: Cell<bool>,
+}
+
 pub(crate) struct RusFarmApp {
     bg: BgImage,
     wall_img: Option<egui::TextureHandle>,
@@ -41,7 +49,7 @@ pub(crate) struct RusFarmApp {
     corn_img: Option<egui::TextureHandle>,
     items: Rc<RefCell<Vec<Pos2>>>,
     hole_img: Option<egui::TextureHandle>,
-    hole: Pos2,
+    holes: Rc<Vec<Hole>>,
     last_animate: Option<std::time::Instant>,
     paused: bool,
 }
@@ -64,7 +72,14 @@ impl RusFarmApp {
                 };
             }
         }
-        let hole = generate_pos(|pos| is_blocked(pos, &map, &[]));
+        let holes = Rc::new(
+            (0..2)
+                .map(|_| Hole {
+                    pos: generate_pos(|pos| is_blocked(pos, &map, &[])),
+                    occupied: Cell::new(false),
+                })
+                .collect(),
+        );
         let map = Rc::new(map);
 
         let bytecode = match compile_program(&args) {
@@ -79,12 +94,12 @@ impl RusFarmApp {
             map: map.clone(),
             rascal_img: None,
             rascals: (0..2)
-                .map(|i| Rascal::new(i, &map, &items, hole, &program, args.debug_output))
+                .map(|i| Rascal::new(i, &map, &items, &holes, &program, args.debug_output))
                 .collect(),
             corn_img: None,
             items,
             hole_img: None,
-            hole,
+            holes,
             last_animate: None,
             paused: false,
         }
@@ -93,7 +108,7 @@ impl RusFarmApp {
     fn animate(&mut self) {
         if !self.paused {
             for rascal in &self.rascals {
-                rascal.animate(&self.rascals, &self.map, &self.items);
+                rascal.animate(&self.rascals, &self.map, &self.items, &self.holes);
             }
             // self.paused = true;
         }
