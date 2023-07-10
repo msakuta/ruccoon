@@ -6,9 +6,9 @@ use eframe::{
 use image::{io::Reader as ImageReader, ImageError};
 use std::error::Error;
 
-use super::{MapCell, RusFarmApp, BOARD_SIZE, CELL_SIZE_F};
+use super::{MapCell, RuccoonApp, BOARD_SIZE, CELL_SIZE_F};
 
-impl RusFarmApp {
+impl RuccoonApp {
     pub(super) fn render_bg(
         &mut self,
         response: &Response,

@@ -40,7 +40,7 @@ pub(crate) struct Hole {
     pub occupied: Cell<bool>,
 }
 
-pub(crate) struct RusFarmApp {
+pub(crate) struct RuccoonApp {
     bg: BgImage,
     weeds_img: Option<egui::TextureHandle>,
     wall_img: Option<egui::TextureHandle>,
@@ -55,7 +55,7 @@ pub(crate) struct RusFarmApp {
     paused: bool,
 }
 
-impl RusFarmApp {
+impl RuccoonApp {
     pub fn new() -> Self {
         let args = parse_args(true).unwrap_or_else(|| {
             let mut args = Args::new();
@@ -127,7 +127,7 @@ impl RusFarmApp {
     }
 }
 
-impl eframe::App for RusFarmApp {
+impl eframe::App for RuccoonApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint_after(std::time::Duration::from_millis(100));
         let now = std::time::Instant::now();

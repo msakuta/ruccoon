@@ -2,7 +2,7 @@ mod app;
 mod bg_image;
 mod raccoon;
 
-use app::{RusFarmApp, BOARD_SIZE, CELL_SIZE};
+use app::{RuccoonApp, BOARD_SIZE, CELL_SIZE};
 use eframe::epaint::vec2;
 
 fn main() {
@@ -12,9 +12,9 @@ fn main() {
         (BOARD_SIZE * CELL_SIZE + 16) as f32,
     ));
     eframe::run_native(
-        "rusfarm",
+        "ruccoon",
         native_options,
-        Box::new(|_cc| Box::new(RusFarmApp::new())),
+        Box::new(|_cc| Box::new(RuccoonApp::new())),
     )
     .unwrap();
 }
