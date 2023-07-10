@@ -22,9 +22,9 @@ const DIRECTIONS: [Vec2; 4] = [
     Vec2::new(0., 1.),
 ];
 
-pub(crate) struct Rascal {
+pub(crate) struct Raccoon {
     id: usize,
-    pub(crate) state: Rc<RefCell<RascalState>>,
+    pub(crate) state: Rc<RefCell<RaccoonState>>,
     vm: Rc<RefCell<Vm>>,
 }
 
@@ -43,7 +43,7 @@ impl From<&PathNode> for Pos2 {
     }
 }
 
-pub(crate) struct RascalState {
+pub(crate) struct RaccoonState {
     pub(crate) pos: Pos2,
     pub(crate) tint: Color32,
     pub(crate) path: Option<Vec<PathNode>>,
@@ -51,13 +51,13 @@ pub(crate) struct RascalState {
 }
 
 struct VmUserData {
-    state: Rc<RefCell<RascalState>>,
+    state: Rc<RefCell<RaccoonState>>,
     map: Rc<Vec<MapCell>>,
     items: Rc<RefCell<Vec<Pos2>>>,
     holes: Rc<Vec<Hole>>,
 }
 
-impl Rascal {
+impl Raccoon {
     pub(crate) fn new(
         id: usize,
         map: &Rc<Vec<MapCell>>,
@@ -67,7 +67,7 @@ impl Rascal {
         debug_output: bool,
     ) -> Self {
         let mut rng = rand::thread_rng();
-        let state = Rc::new(RefCell::new(RascalState {
+        let state = Rc::new(RefCell::new(RaccoonState {
             pos: pos2(
                 rng.gen_range(0..BOARD_SIZE) as f32,
                 rng.gen_range(0..BOARD_SIZE) as f32,
@@ -95,7 +95,7 @@ impl Rascal {
 
     pub(crate) fn animate(
         &self,
-        others: &[Rascal],
+        others: &[Raccoon],
         map: &Rc<Vec<MapCell>>,
         items: &Rc<RefCell<Vec<Pos2>>>,
         holes: &Rc<Vec<Hole>>,
@@ -103,7 +103,7 @@ impl Rascal {
         let mut vm = self.vm.borrow_mut();
         if vm.top().is_err() {
             if let Err(e) = vm.init_fn("main", &[]) {
-                eprintln!("Error in rascal {}: init_fn: {e}", self.id);
+                eprintln!("Error in raccoon {}: init_fn: {e}", self.id);
             }
         }
 
@@ -111,7 +111,7 @@ impl Rascal {
             Ok(YieldResult::Finished(_)) => None,
             Ok(YieldResult::Suspend(res)) => res.coerce_i64().ok(),
             Err(e) => {
-                eprintln!("Error in rascal {}: {e}", self.id);
+                eprintln!("Error in raccoon {}: {e}", self.id);
                 None
             }
         };
@@ -162,7 +162,7 @@ impl Rascal {
         {
             items.remove(i);
             state.ate += 1;
-            println!("Rascal {} ate {} corns", self.id, state.ate);
+            println!("Raccoon {} ate {} corns", self.id, state.ate);
         }
 
         if prev_pos != state.pos {
@@ -211,12 +211,12 @@ pub(crate) fn compile_program(args: &Args) -> Result<ByteCode, Box<dyn Error>> {
     Ok(bytecode)
 }
 
-fn get_prop_fn(get: fn(&RascalState) -> i64) -> NativeFn<'static> {
+fn get_prop_fn(get: fn(&RaccoonState) -> i64) -> NativeFn<'static> {
     NativeFn::new(
         vec![],
         TypeDecl::I64,
         Box::new(move |state, _| {
-            if let Some(state) = state.downcast_ref::<Rc<RefCell<RascalState>>>() {
+            if let Some(state) = state.downcast_ref::<Rc<RefCell<RaccoonState>>>() {
                 Value::I64(get(&state.borrow()))
             } else {
                 Value::I64(0)

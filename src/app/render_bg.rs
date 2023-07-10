@@ -88,10 +88,11 @@ impl RusFarmApp {
             }
         }
 
-        if let Some(texture) = try_insert_with(&mut self.rascal_img, "assets/rascal.png", painter) {
+        if let Some(texture) = try_insert_with(&mut self.raccoon_img, "assets/raccoon.png", painter)
+        {
             let size = texture.size_vec2();
-            for rascal in &self.rascals {
-                let state = rascal.state.borrow();
+            for raccoon in &self.raccoons {
+                let state = raccoon.state.borrow();
                 let min = state.pos.to_vec2() * CELL_SIZE_F;
                 let max = min + size;
                 let rect = Rect {
@@ -253,7 +254,7 @@ fn try_load_image(
     let color_image =
         egui::ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &data);
     Ok(painter.ctx().load_texture(
-        "rascal",
+        "raccoon",
         color_image,
         egui::TextureOptions {
             magnification: egui::TextureFilter::Nearest,

@@ -15,7 +15,7 @@ use ruscal::{parse_args, Args};
 
 use crate::{
     bg_image::BgImage,
-    rascal::{compile_program, Rascal},
+    raccoon::{compile_program, Raccoon},
 };
 
 pub(crate) const CELL_SIZE: usize = 64;
@@ -44,8 +44,8 @@ pub(crate) struct RusFarmApp {
     bg: BgImage,
     wall_img: Option<egui::TextureHandle>,
     map: Rc<Vec<MapCell>>,
-    rascal_img: Option<egui::TextureHandle>,
-    rascals: Vec<Rascal>,
+    raccoon_img: Option<egui::TextureHandle>,
+    raccoons: Vec<Raccoon>,
     corn_img: Option<egui::TextureHandle>,
     items: Rc<RefCell<Vec<Pos2>>>,
     hole_img: Option<egui::TextureHandle>,
@@ -58,7 +58,7 @@ impl RusFarmApp {
     pub fn new() -> Self {
         let args = parse_args(true).unwrap_or_else(|| {
             let mut args = Args::new();
-            args.source = Some("scripts/rascal.txt".to_string());
+            args.source = Some("scripts/raccoon.rscl".to_string());
             args
         });
 
@@ -92,9 +92,9 @@ impl RusFarmApp {
             bg: BgImage::new(),
             wall_img: None,
             map: map.clone(),
-            rascal_img: None,
-            rascals: (0..2)
-                .map(|i| Rascal::new(i, &map, &items, &holes, &program, args.debug_output))
+            raccoon_img: None,
+            raccoons: (0..2)
+                .map(|i| Raccoon::new(i, &map, &items, &holes, &program, args.debug_output))
                 .collect(),
             corn_img: None,
             items,
@@ -107,8 +107,8 @@ impl RusFarmApp {
 
     fn animate(&mut self) {
         if !self.paused {
-            for rascal in &self.rascals {
-                rascal.animate(&self.rascals, &self.map, &self.items, &self.holes);
+            for raccoon in &self.raccoons {
+                raccoon.animate(&self.raccoons, &self.map, &self.items, &self.holes);
             }
             // self.paused = true;
         }

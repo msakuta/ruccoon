@@ -1,6 +1,6 @@
 mod app;
 mod bg_image;
-mod rascal;
+mod raccoon;
 
 use app::{RusFarmApp, BOARD_SIZE, CELL_SIZE};
 use eframe::epaint::vec2;
