@@ -26,7 +26,7 @@ pub(crate) const BOARD_SIZE_I: i32 = BOARD_SIZE as i32;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MapCell {
     Wall,
-    Empty,
+    Empty(u8),
 }
 
 impl MapCell {
@@ -42,6 +42,7 @@ pub(crate) struct Hole {
 
 pub(crate) struct RusFarmApp {
     bg: BgImage,
+    weeds_img: Option<egui::TextureHandle>,
     wall_img: Option<egui::TextureHandle>,
     map: Rc<Vec<MapCell>>,
     raccoon_img: Option<egui::TextureHandle>,
@@ -62,13 +63,14 @@ impl RusFarmApp {
             args
         });
 
-        let mut map = vec![MapCell::Empty; BOARD_SIZE * BOARD_SIZE];
+        let mut map = vec![MapCell::Empty(0); BOARD_SIZE * BOARD_SIZE];
+        let mut rng = rand::thread_rng();
         for i in 0..BOARD_SIZE {
             for j in 0..BOARD_SIZE {
-                map[i + BOARD_SIZE * j] = if rand::random::<f32>() < 0.25 {
+                map[i + BOARD_SIZE * j] = if rng.gen::<f32>() < 0.25 {
                     MapCell::Wall
                 } else {
-                    MapCell::Empty
+                    MapCell::Empty(rng.gen_range(0..7))
                 };
             }
         }
@@ -90,6 +92,7 @@ impl RusFarmApp {
         let items = Rc::new(RefCell::new(vec![]));
         Self {
             bg: BgImage::new(),
+            weeds_img: None,
             wall_img: None,
             map: map.clone(),
             raccoon_img: None,
@@ -151,7 +154,7 @@ impl eframe::App for RusFarmApp {
 fn is_blocked(pos: Pos2, map: &[MapCell], items: &[Pos2]) -> bool {
     if !matches!(
         map[pos.x as usize + pos.y as usize * BOARD_SIZE],
-        MapCell::Empty
+        MapCell::Empty(_)
     ) {
         return true;
     }

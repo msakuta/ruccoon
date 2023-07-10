@@ -22,7 +22,7 @@ impl RusFarmApp {
         for y in 0..BOARD_SIZE {
             for x in 0..BOARD_SIZE {
                 match self.map[x + BOARD_SIZE * y] {
-                    MapCell::Empty => {
+                    MapCell::Empty(weed) => {
                         let file_name = "assets/dirt.png";
                         self.bg.paint(
                             &response,
@@ -41,6 +41,20 @@ impl RusFarmApp {
                             [x as f32 * CELL_SIZE_F, y as f32 * CELL_SIZE_F],
                             CELL_SIZE_F / 32.,
                         )?;
+                        if let Some(texture) =
+                            try_insert_with(&mut self.weeds_img, "assets/weeds.png", painter)
+                        {
+                            let scr_rect = to_screen.transform_rect(Rect::from_min_size(
+                                egui::pos2((x as f32) * CELL_SIZE_F, (y as f32) * CELL_SIZE_F),
+                                Vec2::splat(CELL_SIZE_F),
+                            ));
+                            const MAX_WEED: f32 = 7.;
+                            const DU: f32 = 1. / MAX_WEED;
+                            let u = weed as f32 / MAX_WEED;
+                            let tex_rect =
+                                Rect::from_min_max(egui::pos2(u, 0.), egui::pos2(u + DU, 1.));
+                            painter.image(texture.id(), scr_rect, tex_rect, Color32::WHITE)
+                        }
                     }
                     MapCell::Wall => {
                         if let Some(texture) =

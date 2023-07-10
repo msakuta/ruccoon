@@ -119,7 +119,7 @@ impl Raccoon {
         let is_blocked = |pos: Pos2| {
             if !matches!(
                 map[pos.x as usize + pos.y as usize * BOARD_SIZE],
-                MapCell::Empty
+                MapCell::Empty(_)
             ) {
                 return true;
             }
@@ -369,7 +369,7 @@ fn find_path(start: [i32; 2], map: &[MapCell], items: &[Pos2]) -> Option<Vec<Pat
                 continue;
             }
             let idx = (next[0] + next[1] * BOARD_SIZE_I) as usize;
-            if !matches!(map[idx], MapCell::Empty) {
+            if !matches!(map[idx], MapCell::Empty(_)) {
                 continue;
             }
             let cost_cell = &mut cost_map[idx];
