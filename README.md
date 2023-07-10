@@ -6,6 +6,9 @@ Each agent (raccoon) walks around the map searching for food and once it gets on
 
 This project is a demonstration of utilizing a script language as a state machine description to design this kind of simulation easily.
 
+![screenshot](images/screenshot.png)
+
+
 ## How to run
 
 1. Install [Rust](https://www.rust-lang.org/).
