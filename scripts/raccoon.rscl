@@ -18,7 +18,7 @@ fn go_to_corn() -> i64 {
     print("Finding path to corn");
 
     for i in 0 to 100 {
-        if find_path() {
+        if find_path_to_corn() {
             yield get_next_move();
         } else {
             return 0;
@@ -29,12 +29,8 @@ fn go_to_corn() -> i64 {
 for i in 0 to 10000 {
 
     go_to_corn();
-    yield 5;
+    yield -1;
 
-    var res: i64 = go_to_hole();
-    print("go_to_hole: ", res);
-    if res {
-    } else {
-        yield 5;
-    }
+    go_to_hole();
+    yield -1;
 }

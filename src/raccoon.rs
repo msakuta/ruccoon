@@ -229,7 +229,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn<'static>)) {
     proc("get_x".to_string(), get_prop_fn(|state| state.pos.x as i64));
     proc("get_y".to_string(), get_prop_fn(|state| state.pos.y as i64));
     proc(
-        "find_path".to_string(),
+        "find_path_to_corn".to_string(),
         NativeFn::new(
             vec![],
             TypeDecl::I64,
