@@ -1,3 +1,5 @@
+mod render;
+
 use std::{cell::RefCell, cmp::Reverse, collections::BinaryHeap, error::Error, rc::Rc};
 
 use eframe::epaint::{pos2, Color32, Pos2, Vec2};
