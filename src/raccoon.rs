@@ -24,6 +24,9 @@ const DIRECTIONS: [Vec2; 4] = [
     Vec2::new(0., 1.),
 ];
 
+const CORN_ENERGY: f32 = 0.2;
+const HUNGER_RATE: f32 = 0.005;
+
 pub(crate) struct Raccoon {
     id: usize,
     pub(crate) state: Rc<RefCell<RaccoonState>>,
@@ -50,6 +53,7 @@ pub(crate) struct RaccoonState {
     pub(crate) tint: Color32,
     pub(crate) path: Option<Vec<PathNode>>,
     pub(crate) ate: usize,
+    pub(crate) satiety: f32,
 }
 
 struct VmUserData {
@@ -77,6 +81,7 @@ impl Raccoon {
             tint: Color32::from_rgb(rng.gen(), rng.gen(), rng.gen()),
             path: None,
             ate: 0,
+            satiety: 0.5,
         }));
 
         Self {
@@ -164,8 +169,15 @@ impl Raccoon {
         {
             items.remove(i);
             state.ate += 1;
-            println!("Raccoon {} ate {} corns", self.id, state.ate);
+            state.satiety += CORN_ENERGY;
+            println!(
+                "Raccoon {} ate {} corns and satiety became {}",
+                self.id, state.ate, state.satiety
+            );
         }
+
+        // Getting hungry over time
+        state.satiety = (state.satiety - HUNGER_RATE).max(0.).min(1.);
 
         if prev_pos != state.pos {
             if let Some(hole) = holes.iter().find(|hole| prev_pos == hole.pos) {
@@ -218,10 +230,24 @@ fn get_prop_fn(get: fn(&RaccoonState) -> i64) -> NativeFn<'static> {
         vec![],
         TypeDecl::I64,
         Box::new(move |state, _| {
-            if let Some(state) = state.downcast_ref::<Rc<RefCell<RaccoonState>>>() {
-                Value::I64(get(&state.borrow()))
+            if let Some(data) = state.downcast_ref::<VmUserData>() {
+                Value::I64(get(&data.state.borrow()))
             } else {
                 Value::I64(0)
+            }
+        }),
+    )
+}
+
+fn get_prop_fn_f(get: fn(&RaccoonState) -> f64) -> NativeFn<'static> {
+    NativeFn::new(
+        vec![],
+        TypeDecl::F64,
+        Box::new(move |data, _| {
+            if let Some(data) = data.downcast_ref::<VmUserData>() {
+                Value::F64(get(&data.state.borrow()))
+            } else {
+                Value::F64(0.)
             }
         }),
     )
@@ -309,7 +335,11 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn<'static>)) {
                 Value::I64(5)
             }),
         ),
-    )
+    );
+    proc(
+        "get_satiety".to_string(),
+        get_prop_fn_f(|state| state.satiety as f64),
+    );
 }
 
 fn find_path(start: [i32; 2], map: &[MapCell], items: &[Pos2]) -> Option<Vec<PathNode>> {

@@ -1,7 +1,7 @@
 use eframe::{
     egui::{self, Painter, Response},
-    emath::{Align2, RectTransform},
-    epaint::{Color32, ColorImage, FontId, PathShape, Pos2, Rect, Vec2},
+    emath::RectTransform,
+    epaint::{Color32, ColorImage, FontId, Pos2, Rect, Vec2},
 };
 use image::{io::Reader as ImageReader, ImageError};
 use std::error::Error;

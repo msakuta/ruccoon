@@ -18,6 +18,10 @@ fn go_to_corn() -> i64 {
     print("Finding path to corn");
 
     for i in 0 to 100 {
+        print("satiety: ", get_satiety());
+        if get_satiety() > 0.6 {
+            return 0;
+        };
         if find_path_to_corn() {
             yield get_next_move();
         } else {
@@ -28,8 +32,10 @@ fn go_to_corn() -> i64 {
 
 for i in 0 to 10000 {
 
-    go_to_corn();
-    yield -1;
+    if get_satiety() < 0.6 {
+        go_to_corn();
+        yield -1;
+    };
 
     go_to_hole();
     yield -1;
