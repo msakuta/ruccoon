@@ -3,7 +3,7 @@ mod render;
 use std::{cell::RefCell, cmp::Reverse, collections::BinaryHeap, error::Error, rc::Rc};
 
 use eframe::epaint::{pos2, Color32, Pos2, Vec2};
-use rand::Rng;
+use rand::{rngs::ThreadRng, Rng};
 use ruscal::{
     ast::TypeDecl,
     bytecode::{ByteCode, NativeFn},
@@ -73,12 +73,17 @@ impl Raccoon {
         debug_output: bool,
     ) -> Self {
         let mut rng = rand::thread_rng();
+        let gen_channel = |rng: &mut ThreadRng| rng.gen::<u8>() / 2 + 127;
         let state = Rc::new(RefCell::new(RaccoonState {
             pos: pos2(
                 rng.gen_range(0..BOARD_SIZE) as f32,
                 rng.gen_range(0..BOARD_SIZE) as f32,
             ),
-            tint: Color32::from_rgb(rng.gen(), rng.gen(), rng.gen()),
+            tint: Color32::from_rgb(
+                gen_channel(&mut rng),
+                gen_channel(&mut rng),
+                gen_channel(&mut rng),
+            ),
             path: None,
             ate: 0,
             satiety: 0.5,
@@ -131,7 +136,9 @@ impl Raccoon {
                 return true;
             }
             if others.iter().any(|other| {
-                let Ok(other_state) = other.state.try_borrow() else { return false };
+                let Ok(other_state) = other.state.try_borrow() else {
+                    return false;
+                };
                 other_state.pos == pos
             }) {
                 return true;
