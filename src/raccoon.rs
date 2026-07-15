@@ -71,7 +71,7 @@ impl Raccoon {
         map: &Rc<Vec<MapCell>>,
         items: &Rc<RefCell<Vec<Pos2>>>,
         holes: &Rc<Vec<Hole>>,
-        make_bytecode: impl FnOnce() -> Bytecode,
+        bytecode: &'static Bytecode,
     ) -> anyhow::Result<Self> {
         let mut rng = rand::rng();
         let gen_channel = |rng: &mut ThreadRng| rng.random::<u8>() / 2 + 127;
@@ -90,10 +90,6 @@ impl Raccoon {
             satiety: 0.5,
             yielded: None,
         }));
-
-        // Since both Vm and Bytecode would be a part of a Raccoon, they are technically
-        // self-referencing, so we need to leak memory to allow static lifetime.
-        let bytecode = Box::leak(Box::new(make_bytecode()));
 
         Ok(Self {
             id,

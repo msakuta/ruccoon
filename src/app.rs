@@ -6,6 +6,7 @@ use std::{
     rc::Rc,
 };
 
+use anyhow::Context;
 use eframe::{
     egui::{self, Frame},
     epaint::{Pos2, pos2},
@@ -62,6 +63,12 @@ impl RuccoonApp {
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("scripts/raccoon.mscl"));
 
+        // Since both Vm and Bytecode would be a part of a RaccoonApp, they are technically
+        // self-referencing, so we need to leak memory to allow static lifetime.
+        let bytecode = Box::leak(Box::new(
+            compile_program(&source).context("Compile error").unwrap(),
+        ));
+
         let mut map = vec![MapCell::Empty(0); BOARD_SIZE * BOARD_SIZE];
         let mut rng = rand::rng();
         for i in 0..BOARD_SIZE {
@@ -83,11 +90,6 @@ impl RuccoonApp {
         );
         let map = Rc::new(map);
 
-        // let bytecode = match compile_program(&source) {
-        //     Ok(bytecode) => bytecode,
-        //     Err(e) => panic!("Compile error: {e}"),
-        // };
-        // let program = Rc::new(bytecode);
         let items = Rc::new(RefCell::new(vec![]));
         Self {
             bg: BgImage::new(),
@@ -96,11 +98,7 @@ impl RuccoonApp {
             map: map.clone(),
             raccoon_img: None,
             raccoons: (0..2)
-                .map(|i| {
-                    Raccoon::new(i, &map, &items, &holes, || {
-                        compile_program(&source).unwrap()
-                    })
-                })
+                .map(|i| Raccoon::new(i, &map, &items, &holes, bytecode))
                 .collect::<Result<_, _>>()
                 .unwrap(),
             corn_img: None,
