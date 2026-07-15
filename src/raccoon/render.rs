@@ -1,7 +1,7 @@
 use eframe::{
     egui::Painter,
     emath::{Align2, RectTransform},
-    epaint::{vec2, Color32, FontId, PathShape, Pos2, Rect, TextureHandle, Vec2},
+    epaint::{Color32, FontId, PathShape, Pos2, Rect, TextureHandle, Vec2, vec2},
 };
 
 use super::Raccoon;

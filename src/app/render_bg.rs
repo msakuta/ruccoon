@@ -3,10 +3,10 @@ use eframe::{
     emath::RectTransform,
     epaint::{Color32, ColorImage, FontId, Pos2, Rect, Vec2},
 };
-use image::{io::Reader as ImageReader, ImageError};
+use image::{ImageError, io::Reader as ImageReader};
 use std::error::Error;
 
-use super::{MapCell, RuccoonApp, BOARD_SIZE, CELL_SIZE_F};
+use super::{BOARD_SIZE, CELL_SIZE_F, MapCell, RuccoonApp};
 
 impl RuccoonApp {
     pub(super) fn render_bg(

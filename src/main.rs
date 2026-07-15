@@ -2,7 +2,7 @@ mod app;
 mod bg_image;
 mod raccoon;
 
-use app::{RuccoonApp, BOARD_SIZE, CELL_SIZE};
+use app::{BOARD_SIZE, CELL_SIZE, RuccoonApp};
 use eframe::epaint::vec2;
 
 fn main() {

@@ -8,14 +8,14 @@ use std::{
 
 use eframe::{
     egui::{self, Frame},
-    epaint::{pos2, Pos2},
+    epaint::{Pos2, pos2},
 };
 
 use rand::Rng;
 
 use crate::{
     bg_image::BgImage,
-    raccoon::{compile_program, Raccoon},
+    raccoon::{Raccoon, compile_program},
 };
 
 pub(crate) const CELL_SIZE: usize = 64;
@@ -66,7 +66,7 @@ impl RuccoonApp {
         let mut rng = rand::thread_rng();
         for i in 0..BOARD_SIZE {
             for j in 0..BOARD_SIZE {
-                map[i + BOARD_SIZE * j] = if rng.gen::<f32>() < 0.25 {
+                map[i + BOARD_SIZE * j] = if rng.r#gen::<f32>() < 0.25 {
                     MapCell::Wall
                 } else {
                     MapCell::Empty(rng.gen_range(0..7))
@@ -121,7 +121,7 @@ impl RuccoonApp {
         }
 
         let mut rng = rand::thread_rng();
-        if self.items.borrow().len() < 10 && rng.gen::<f64>() < 0.1 {
+        if self.items.borrow().len() < 10 && rng.r#gen::<f64>() < 0.1 {
             let pos = generate_pos(|pos| is_blocked(pos, &self.map, &self.items.borrow()));
             let mut items = self.items.borrow_mut();
             if items.iter().all(|item| *item != pos) {

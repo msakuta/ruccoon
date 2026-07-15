@@ -9,14 +9,14 @@ use std::{
 };
 
 use anyhow::Context;
-use eframe::epaint::{pos2, Color32, Pos2, Vec2};
+use eframe::epaint::{Color32, Pos2, Vec2, pos2};
 use mascal::{
-    type_check, Bytecode, CompilerBuilder, FuncDef, NativeCode, NativeFn, TypeCheckContext,
-    TypeCheckError, TypeDecl, Value, Vm,
+    Bytecode, CompilerBuilder, FuncDef, NativeCode, NativeFn, TypeCheckContext, TypeCheckError,
+    TypeDecl, Value, Vm, type_check,
 };
-use rand::{rngs::ThreadRng, Rng};
+use rand::{Rng, rngs::ThreadRng};
 
-use crate::app::{Hole, MapCell, BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F};
+use crate::app::{BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F, Hole, MapCell};
 
 const DIRECTIONS: [Vec2; 4] = [
     Vec2::new(-1., 0.),
@@ -31,7 +31,6 @@ const HUNGER_RATE: f32 = 0.005;
 pub(crate) struct Raccoon {
     id: usize,
     pub(crate) state: Rc<RefCell<RaccoonState>>,
-    yielded: Rc<RefCell<bool>>,
     vm: Rc<RefCell<Vm<'static>>>,
 }
 
@@ -56,6 +55,7 @@ pub(crate) struct RaccoonState {
     pub(crate) path: Option<Vec<PathNode>>,
     pub(crate) ate: usize,
     pub(crate) satiety: f32,
+    yielded: Option<i32>,
 }
 
 struct VmUserData {
@@ -68,13 +68,13 @@ struct VmUserData {
 impl Raccoon {
     pub(crate) fn new(
         id: usize,
-        _map: &Rc<Vec<MapCell>>,
-        _items: &Rc<RefCell<Vec<Pos2>>>,
-        _holes: &Rc<Vec<Hole>>,
+        map: &Rc<Vec<MapCell>>,
+        items: &Rc<RefCell<Vec<Pos2>>>,
+        holes: &Rc<Vec<Hole>>,
         make_bytecode: impl FnOnce() -> Bytecode,
     ) -> anyhow::Result<Self> {
         let mut rng = rand::thread_rng();
-        let gen_channel = |rng: &mut ThreadRng| rng.gen::<u8>() / 2 + 127;
+        let gen_channel = |rng: &mut ThreadRng| rng.r#gen::<u8>() / 2 + 127;
         let state = Rc::new(RefCell::new(RaccoonState {
             pos: pos2(
                 rng.gen_range(0..BOARD_SIZE) as f32,
@@ -88,33 +88,25 @@ impl Raccoon {
             path: None,
             ate: 0,
             satiety: 0.5,
+            yielded: None,
         }));
 
-        let yielded = Rc::new(RefCell::new(false));
-        let yielded_copy = yielded.clone();
-
+        // Since both Vm and Bytecode would be a part of a Raccoon, they are technically
+        // self-referencing, so we need to leak memory to allow static lifetime.
         let bytecode = Box::leak(Box::new(make_bytecode()));
-        bytecode.add_ext_fn(
-            "yield_".to_string(),
-            Box::new(move |_, _args| {
-                *yielded_copy.borrow_mut() = true;
-                Ok(Value::I32(0))
-            }),
-        );
 
         Ok(Self {
             id,
             state: state.clone(),
-            yielded,
             vm: Rc::new(RefCell::new(
                 Vm::start_main(
                     bytecode,
-                    // Box::new(VmUserData {
-                    //     state,
-                    //     map: map.clone(),
-                    //     items: items.clone(),
-                    //     holes: holes.clone(),
-                    // }),
+                    Rc::new(VmUserData {
+                        state,
+                        map: map.clone(),
+                        items: items.clone(),
+                        holes: holes.clone(),
+                    }),
                     // debug_output,
                 )
                 .context("Creating Vm")?,
@@ -130,27 +122,26 @@ impl Raccoon {
         holes: &Rc<Vec<Hole>>,
     ) {
         let mut vm = self.vm.borrow_mut();
-        // if vm.top().is_err() {
-        if let Err(e) = vm.init_fn("main", &[]) {
-            eprintln!("Error in raccoon {}: init_fn: {e}", self.id);
-        }
-        // }
 
-        while let Ok(_) = vm.next_inst() {
-            println!("next_inst");
-            if *self.yielded.borrow() {
-                break;
+        let direction_code = loop {
+            let res = match vm.next_inst() {
+                Ok(res) => res,
+                Err(e) => {
+                    println!("next_inst Error: {e}");
+                    return;
+                }
+            };
+            print!(".");
+            if let Some(res) = res {
+                print!("{res:?}");
             }
-        }
-
-        // let direction_code = match  {
-        //     Ok(YieldResult::Finished(_)) => None,
-        //     Ok(YieldResult::Suspend(res)) => res.coerce_i64().ok(),
-        //     Err(e) => {
-        //         eprintln!("Error in raccoon {}: {e}", self.id);
-        //         None
-        //     }
-        // };
+            let mut state = self.state.borrow_mut();
+            if let Some(yielded) = state.yielded {
+                println!("yielded!");
+                state.yielded = None;
+                break yielded;
+            }
+        };
 
         let is_blocked = |pos: Pos2| {
             if !matches!(
@@ -170,55 +161,55 @@ impl Raccoon {
             false
         };
 
-        // let prev_pos = self.state.borrow().pos;
-        // if let Some(direction) = direction_code.and_then(|code| DIRECTIONS.get(code as usize)) {
-        //     let mut state = self.state.borrow_mut();
-        //     let mut pos = state.pos + *direction;
+        let prev_pos = self.state.borrow().pos;
+        if let Some(direction) = DIRECTIONS.get(direction_code as usize) {
+            let mut state = self.state.borrow_mut();
+            let mut pos = state.pos + *direction;
 
-        //     if pos.x < 0. {
-        //         pos.x = 0.;
-        //     } else if BOARD_SIZE as f32 <= pos.x {
-        //         pos.x = (BOARD_SIZE - 1) as f32;
-        //     }
-        //     if pos.y < 0. {
-        //         pos.y = 0.;
-        //     } else if BOARD_SIZE as f32 <= pos.y {
-        //         pos.y = (BOARD_SIZE - 1) as f32;
-        //     }
+            if pos.x < 0. {
+                pos.x = 0.;
+            } else if BOARD_SIZE as f32 <= pos.x {
+                pos.x = (BOARD_SIZE - 1) as f32;
+            }
+            if pos.y < 0. {
+                pos.y = 0.;
+            } else if BOARD_SIZE as f32 <= pos.y {
+                pos.y = (BOARD_SIZE - 1) as f32;
+            }
 
-        //     if !is_blocked(pos) {
-        //         state.pos = pos;
-        //     }
-        // }
+            if !is_blocked(pos) {
+                state.pos = pos;
+            }
+        }
 
-        // let mut state = self.state.borrow_mut();
-        // let mut items = items.borrow_mut();
-        // if let Some((i, _)) = items
-        //     .iter()
-        //     .enumerate()
-        //     .find(|(_, item)| **item == state.pos)
-        // {
-        //     items.remove(i);
-        //     state.ate += 1;
-        //     state.satiety += CORN_ENERGY;
-        //     println!(
-        //         "Raccoon {} ate {} corns and satiety became {}",
-        //         self.id, state.ate, state.satiety
-        //     );
-        // }
+        let mut state = self.state.borrow_mut();
+        let mut items = items.borrow_mut();
+        if let Some((i, _)) = items
+            .iter()
+            .enumerate()
+            .find(|(_, item)| **item == state.pos)
+        {
+            items.remove(i);
+            state.ate += 1;
+            state.satiety += CORN_ENERGY;
+            println!(
+                "Raccoon {} ate {} corns and satiety became {}",
+                self.id, state.ate, state.satiety
+            );
+        }
 
-        // // Getting hungry over time
-        // state.satiety = (state.satiety - HUNGER_RATE).max(0.).min(1.);
+        // Getting hungry over time
+        state.satiety = (state.satiety - HUNGER_RATE).max(0.).min(1.);
 
-        // if prev_pos != state.pos {
-        //     if let Some(hole) = holes.iter().find(|hole| prev_pos == hole.pos) {
-        //         hole.occupied.set(false);
-        //     }
-        // }
+        if prev_pos != state.pos {
+            if let Some(hole) = holes.iter().find(|hole| prev_pos == hole.pos) {
+                hole.occupied.set(false);
+            }
+        }
 
-        // if let Some(hole) = holes.iter().find(|hole| state.pos == hole.pos) {
-        //     hole.occupied.set(true);
-        // }
+        if let Some(hole) = holes.iter().find(|hole| state.pos == hole.pos) {
+            hole.occupied.set(true);
+        }
     }
 }
 
@@ -283,20 +274,24 @@ pub(crate) fn compile_program(src_file: &Path) -> Result<Bytecode, CompileError>
     });
     functions.insert(
         "yield_".to_string(),
-        Box::new(|ctx, arg| {
-            println!("yielded!");
+        Box::new(|ctx, args| {
+            if let Some(user_data) = ctx.downcast_ref::<VmUserData>()
+                && let Some(arg) = args.first()
+                && let Ok(arg) = mascal::coercion::coerce_i32(arg)
+            {
+                println!("Yield flag set");
+                user_data.state.borrow_mut().yielded = Some(arg);
+            }
             Ok(Value::I32(0))
         }),
     );
 
     let compiler = CompilerBuilder::new(&ast).functions(functions);
-    let mut bytecode = compiler.compile(&mut std::io::sink())?;
+    let bytecode = compiler.compile(&mut std::io::sink())?;
 
     // if args.disasm {
     //     compiler.disasm(&mut std::io::stdout())?;
     // }
-
-    extend_funcs(|name, func, _| bytecode.add_ext_fn(name, func));
 
     Ok(bytecode)
 }
@@ -393,7 +388,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             if let Some(data) = state.downcast_ref::<VmUserData>() {
                 let mut state = data.state.borrow_mut();
                 if let Some(node) = state.path.as_mut().and_then(|path| path.pop()) {
-                    // println!("get_next_move returning {}", node.direction);
+                    println!("get_next_move returning {}", node.direction);
                     return Ok(Value::I64(node.direction as i64));
                 }
             }
