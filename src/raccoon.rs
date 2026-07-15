@@ -1,19 +1,20 @@
 mod render;
 
-use std::{cell::RefCell, cmp::Reverse, collections::BinaryHeap, error::Error, rc::Rc};
-
-use eframe::epaint::{pos2, Color32, Pos2, Vec2};
-use rand::{rngs::ThreadRng, Rng};
-use ruscal::{
-    ast::TypeDecl,
-    bytecode::{ByteCode, NativeFn},
-    compiler::Compiler,
-    file_io::parse_program,
-    type_checker::{type_check, TypeCheckContext},
-    value::Value,
-    vm::{Vm, YieldResult},
-    Args,
+use std::{
+    cell::RefCell,
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap},
+    path::Path,
+    rc::Rc,
 };
+
+use anyhow::Context;
+use eframe::epaint::{pos2, Color32, Pos2, Vec2};
+use mascal::{
+    type_check, Bytecode, CompilerBuilder, FuncDef, NativeCode, NativeFn, TypeCheckContext,
+    TypeCheckError, TypeDecl, Value, Vm,
+};
+use rand::{rngs::ThreadRng, Rng};
 
 use crate::app::{Hole, MapCell, BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F};
 
@@ -30,7 +31,8 @@ const HUNGER_RATE: f32 = 0.005;
 pub(crate) struct Raccoon {
     id: usize,
     pub(crate) state: Rc<RefCell<RaccoonState>>,
-    vm: Rc<RefCell<Vm>>,
+    yielded: Rc<RefCell<bool>>,
+    vm: Rc<RefCell<Vm<'static>>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -66,12 +68,11 @@ struct VmUserData {
 impl Raccoon {
     pub(crate) fn new(
         id: usize,
-        map: &Rc<Vec<MapCell>>,
-        items: &Rc<RefCell<Vec<Pos2>>>,
-        holes: &Rc<Vec<Hole>>,
-        bytecode: &Rc<ByteCode>,
-        debug_output: bool,
-    ) -> Self {
+        _map: &Rc<Vec<MapCell>>,
+        _items: &Rc<RefCell<Vec<Pos2>>>,
+        _holes: &Rc<Vec<Hole>>,
+        make_bytecode: impl FnOnce() -> Bytecode,
+    ) -> anyhow::Result<Self> {
         let mut rng = rand::thread_rng();
         let gen_channel = |rng: &mut ThreadRng| rng.gen::<u8>() / 2 + 127;
         let state = Rc::new(RefCell::new(RaccoonState {
@@ -89,20 +90,36 @@ impl Raccoon {
             satiety: 0.5,
         }));
 
-        Self {
+        let yielded = Rc::new(RefCell::new(false));
+        let yielded_copy = yielded.clone();
+
+        let bytecode = Box::leak(Box::new(make_bytecode()));
+        bytecode.add_ext_fn(
+            "yield_".to_string(),
+            Box::new(move |_, _args| {
+                *yielded_copy.borrow_mut() = true;
+                Ok(Value::I32(0))
+            }),
+        );
+
+        Ok(Self {
             id,
             state: state.clone(),
-            vm: Rc::new(RefCell::new(Vm::new(
-                bytecode.clone(),
-                Box::new(VmUserData {
-                    state,
-                    map: map.clone(),
-                    items: items.clone(),
-                    holes: holes.clone(),
-                }),
-                debug_output,
-            ))),
-        }
+            yielded,
+            vm: Rc::new(RefCell::new(
+                Vm::start_main(
+                    bytecode,
+                    // Box::new(VmUserData {
+                    //     state,
+                    //     map: map.clone(),
+                    //     items: items.clone(),
+                    //     holes: holes.clone(),
+                    // }),
+                    // debug_output,
+                )
+                .context("Creating Vm")?,
+            )),
+        })
     }
 
     pub(crate) fn animate(
@@ -113,20 +130,27 @@ impl Raccoon {
         holes: &Rc<Vec<Hole>>,
     ) {
         let mut vm = self.vm.borrow_mut();
-        if vm.top().is_err() {
-            if let Err(e) = vm.init_fn("main", &[]) {
-                eprintln!("Error in raccoon {}: init_fn: {e}", self.id);
+        // if vm.top().is_err() {
+        if let Err(e) = vm.init_fn("main", &[]) {
+            eprintln!("Error in raccoon {}: init_fn: {e}", self.id);
+        }
+        // }
+
+        while let Ok(_) = vm.next_inst() {
+            println!("next_inst");
+            if *self.yielded.borrow() {
+                break;
             }
         }
 
-        let direction_code = match vm.interpret() {
-            Ok(YieldResult::Finished(_)) => None,
-            Ok(YieldResult::Suspend(res)) => res.coerce_i64().ok(),
-            Err(e) => {
-                eprintln!("Error in raccoon {}: {e}", self.id);
-                None
-            }
-        };
+        // let direction_code = match  {
+        //     Ok(YieldResult::Finished(_)) => None,
+        //     Ok(YieldResult::Suspend(res)) => res.coerce_i64().ok(),
+        //     Err(e) => {
+        //         eprintln!("Error in raccoon {}: {e}", self.id);
+        //         None
+        //     }
+        // };
 
         let is_blocked = |pos: Pos2| {
             if !matches!(
@@ -146,206 +170,241 @@ impl Raccoon {
             false
         };
 
-        let prev_pos = self.state.borrow().pos;
-        if let Some(direction) = direction_code.and_then(|code| DIRECTIONS.get(code as usize)) {
-            let mut state = self.state.borrow_mut();
-            let mut pos = state.pos + *direction;
+        // let prev_pos = self.state.borrow().pos;
+        // if let Some(direction) = direction_code.and_then(|code| DIRECTIONS.get(code as usize)) {
+        //     let mut state = self.state.borrow_mut();
+        //     let mut pos = state.pos + *direction;
 
-            if pos.x < 0. {
-                pos.x = 0.;
-            } else if BOARD_SIZE as f32 <= pos.x {
-                pos.x = (BOARD_SIZE - 1) as f32;
-            }
-            if pos.y < 0. {
-                pos.y = 0.;
-            } else if BOARD_SIZE as f32 <= pos.y {
-                pos.y = (BOARD_SIZE - 1) as f32;
-            }
+        //     if pos.x < 0. {
+        //         pos.x = 0.;
+        //     } else if BOARD_SIZE as f32 <= pos.x {
+        //         pos.x = (BOARD_SIZE - 1) as f32;
+        //     }
+        //     if pos.y < 0. {
+        //         pos.y = 0.;
+        //     } else if BOARD_SIZE as f32 <= pos.y {
+        //         pos.y = (BOARD_SIZE - 1) as f32;
+        //     }
 
-            if !is_blocked(pos) {
-                state.pos = pos;
-            }
-        }
+        //     if !is_blocked(pos) {
+        //         state.pos = pos;
+        //     }
+        // }
 
-        let mut state = self.state.borrow_mut();
-        let mut items = items.borrow_mut();
-        if let Some((i, _)) = items
-            .iter()
-            .enumerate()
-            .find(|(_, item)| **item == state.pos)
-        {
-            items.remove(i);
-            state.ate += 1;
-            state.satiety += CORN_ENERGY;
-            println!(
-                "Raccoon {} ate {} corns and satiety became {}",
-                self.id, state.ate, state.satiety
-            );
-        }
+        // let mut state = self.state.borrow_mut();
+        // let mut items = items.borrow_mut();
+        // if let Some((i, _)) = items
+        //     .iter()
+        //     .enumerate()
+        //     .find(|(_, item)| **item == state.pos)
+        // {
+        //     items.remove(i);
+        //     state.ate += 1;
+        //     state.satiety += CORN_ENERGY;
+        //     println!(
+        //         "Raccoon {} ate {} corns and satiety became {}",
+        //         self.id, state.ate, state.satiety
+        //     );
+        // }
 
-        // Getting hungry over time
-        state.satiety = (state.satiety - HUNGER_RATE).max(0.).min(1.);
+        // // Getting hungry over time
+        // state.satiety = (state.satiety - HUNGER_RATE).max(0.).min(1.);
 
-        if prev_pos != state.pos {
-            if let Some(hole) = holes.iter().find(|hole| prev_pos == hole.pos) {
-                hole.occupied.set(false);
-            }
-        }
+        // if prev_pos != state.pos {
+        //     if let Some(hole) = holes.iter().find(|hole| prev_pos == hole.pos) {
+        //         hole.occupied.set(false);
+        //     }
+        // }
 
-        if let Some(hole) = holes.iter().find(|hole| state.pos == hole.pos) {
-            hole.occupied.set(true);
+        // if let Some(hole) = holes.iter().find(|hole| state.pos == hole.pos) {
+        //     hole.occupied.set(true);
+        // }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum CompileError {
+    TypeCheck(String),
+    IO(std::io::Error),
+    Compile(String),
+}
+
+impl std::fmt::Display for CompileError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TypeCheck(e) => write!(f, "Type check error: {e}"),
+            Self::IO(e) => e.fmt(f),
+            Self::Compile(e) => write!(f, "Compile error: {e}"),
         }
     }
 }
 
-pub(crate) fn compile_program(args: &Args) -> Result<ByteCode, Box<dyn Error>> {
-    let src = args.source.as_ref().expect("Source file exists");
-    let source = std::fs::read_to_string(src).expect("Source file could be read");
-    let ast = parse_program(src, &source).expect("Source parsed");
+impl std::error::Error for CompileError {}
 
-    let mut type_check_context = TypeCheckContext::new();
-    extend_funcs(|name, func| type_check_context.add_fn(name, func));
-    match type_check(&ast, &mut type_check_context) {
-        Ok(_) => println!("Typecheck Ok"),
-        Err(e) => {
-            return Err(format!(
-                "{}:{}:{}: {}",
-                src,
-                e.span.location_line(),
-                e.span.get_utf8_column(),
-                e
-            )
-            .into())
-        }
+impl<'a> From<TypeCheckError<'a>> for CompileError {
+    fn from(value: TypeCheckError<'a>) -> Self {
+        Self::TypeCheck(value.to_string())
     }
+}
 
-    let mut compiler = Compiler::new();
-    compiler.compile(&ast)?;
-
-    if args.disasm {
-        compiler.disasm(&mut std::io::stdout())?;
+impl From<std::io::Error> for CompileError {
+    fn from(value: std::io::Error) -> Self {
+        Self::IO(value)
     }
+}
 
-    let mut bytecode = compiler.into_bytecode();
-    extend_funcs(|name, func| bytecode.add_fn(name, func));
+impl<'a> From<mascal::CompileError<'a>> for CompileError {
+    fn from(value: mascal::CompileError<'a>) -> Self {
+        Self::Compile(value.to_string())
+    }
+}
+
+pub(crate) fn compile_program(src_file: &Path) -> Result<Bytecode, CompileError> {
+    let src = std::fs::read_to_string(src_file).expect("Source file could be read");
+    let (_, mut ast) = mascal::source(&src).expect("Source parsed");
+
+    let mut type_check_context = TypeCheckContext::new(src_file.to_str());
+    extend_funcs(|name, func, ret_ty| {
+        type_check_context.set_fn(
+            &name,
+            FuncDef::Native(NativeCode::new(Box::leak(func), vec![], Some(ret_ty))),
+        );
+    });
+    type_check_context.set_fn(
+        "yield_",
+        FuncDef::Native(NativeCode::new(&|_, _| Ok(Value::I64(0)), vec![], None)),
+    );
+    type_check(&mut ast, &mut type_check_context).map_err(CompileError::from)?;
+    println!("Typecheck Ok");
+
+    let mut functions = HashMap::new();
+    extend_funcs(|name, func, _| {
+        functions.insert(name, func);
+    });
+    functions.insert(
+        "yield_".to_string(),
+        Box::new(|ctx, arg| {
+            println!("yielded!");
+            Ok(Value::I32(0))
+        }),
+    );
+
+    let compiler = CompilerBuilder::new(&ast).functions(functions);
+    let mut bytecode = compiler.compile(&mut std::io::sink())?;
+
+    // if args.disasm {
+    //     compiler.disasm(&mut std::io::stdout())?;
+    // }
+
+    extend_funcs(|name, func, _| bytecode.add_ext_fn(name, func));
 
     Ok(bytecode)
 }
 
-fn get_prop_fn(get: fn(&RaccoonState) -> i64) -> NativeFn<'static> {
-    NativeFn::new(
-        vec![],
-        TypeDecl::I64,
-        Box::new(move |state, _| {
-            if let Some(data) = state.downcast_ref::<VmUserData>() {
-                Value::I64(get(&data.state.borrow()))
-            } else {
-                Value::I64(0)
-            }
-        }),
-    )
+fn get_prop_fn(get: fn(&RaccoonState) -> i32) -> NativeFn {
+    Box::new(move |state, _| {
+        if let Some(data) = state.downcast_ref::<VmUserData>() {
+            Ok(Value::I32(get(&data.state.borrow())))
+        } else {
+            Ok(Value::I32(0))
+        }
+    })
 }
 
-fn get_prop_fn_f(get: fn(&RaccoonState) -> f64) -> NativeFn<'static> {
-    NativeFn::new(
-        vec![],
-        TypeDecl::F64,
-        Box::new(move |data, _| {
-            if let Some(data) = data.downcast_ref::<VmUserData>() {
-                Value::F64(get(&data.state.borrow()))
-            } else {
-                Value::F64(0.)
-            }
-        }),
-    )
+fn get_prop_fn_f(get: fn(&RaccoonState) -> f64) -> NativeFn {
+    Box::new(move |data, _| {
+        if let Some(data) = data.downcast_ref::<VmUserData>() {
+            Ok(Value::F64(get(&data.state.borrow())))
+        } else {
+            Ok(Value::F64(0.))
+        }
+    })
 }
 
-fn extend_funcs(mut proc: impl FnMut(String, NativeFn<'static>)) {
-    proc("get_x".to_string(), get_prop_fn(|state| state.pos.x as i64));
-    proc("get_y".to_string(), get_prop_fn(|state| state.pos.y as i64));
+fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
+    proc(
+        "get_x".to_string(),
+        get_prop_fn(|state| state.pos.x as i32),
+        TypeDecl::I32,
+    );
+    proc(
+        "get_y".to_string(),
+        get_prop_fn(|state| state.pos.y as i32),
+        TypeDecl::I32,
+    );
     proc(
         "find_path_to_corn".to_string(),
-        NativeFn::new(
-            vec![],
-            TypeDecl::I64,
-            Box::new(move |state, _| {
-                if let Some(data) = state.downcast_ref::<VmUserData>() {
-                    let mut state = data.state.borrow_mut();
-                    state.path = find_path(
-                        [state.pos.x as i32, state.pos.y as i32],
-                        &data.map,
-                        &data.items.borrow(),
-                    );
-                    Value::I64(state.path.is_some() as i64)
-                } else {
-                    Value::I64(0)
-                }
-            }),
-        ),
+        Box::new(move |state, _| {
+            if let Some(data) = state.downcast_ref::<VmUserData>() {
+                let mut state = data.state.borrow_mut();
+                state.path = find_path(
+                    [state.pos.x as i32, state.pos.y as i32],
+                    &data.map,
+                    &data.items.borrow(),
+                );
+                Ok(Value::I32(state.path.is_some() as i32))
+            } else {
+                Ok(Value::I32(0))
+            }
+        }),
+        TypeDecl::I32,
     );
     proc(
         "find_path_to_hole".to_string(),
-        NativeFn::new(
-            vec![],
-            TypeDecl::I64,
-            Box::new(move |state, _| {
-                if let Some(data) = state.downcast_ref::<VmUserData>() {
-                    let mut state = data.state.borrow_mut();
-                    let holes: Vec<_> = data
-                        .holes
-                        .iter()
-                        .filter_map(|hole| {
-                            if hole.occupied.get() {
-                                None
-                            } else {
-                                Some(hole.pos)
-                            }
-                        })
-                        .collect();
-                    state.path =
-                        find_path([state.pos.x as i32, state.pos.y as i32], &data.map, &holes);
-                    Value::I64(state.path.is_some() as i64)
-                } else {
-                    Value::I64(0)
-                }
-            }),
-        ),
+        Box::new(move |state, _| {
+            if let Some(data) = state.downcast_ref::<VmUserData>() {
+                let mut state = data.state.borrow_mut();
+                let holes: Vec<_> = data
+                    .holes
+                    .iter()
+                    .filter_map(|hole| {
+                        if hole.occupied.get() {
+                            None
+                        } else {
+                            Some(hole.pos)
+                        }
+                    })
+                    .collect();
+                state.path = find_path([state.pos.x as i32, state.pos.y as i32], &data.map, &holes);
+                Ok(Value::I32(state.path.is_some() as i32))
+            } else {
+                Ok(Value::I32(0))
+            }
+        }),
+        TypeDecl::I32,
     );
     proc(
         "is_at_hole".to_string(),
-        NativeFn::new(
-            vec![],
-            TypeDecl::I64,
-            Box::new(move |state, _| {
-                if let Some(data) = state.downcast_ref::<VmUserData>() {
-                    let state = data.state.borrow();
-                    Value::I64((data.holes.iter().any(|hole| state.pos == hole.pos)) as i64)
-                } else {
-                    Value::I64(0)
-                }
-            }),
-        ),
+        Box::new(move |state, _| {
+            if let Some(data) = state.downcast_ref::<VmUserData>() {
+                let state = data.state.borrow();
+                Ok(Value::I32(
+                    (data.holes.iter().any(|hole| state.pos == hole.pos)) as i32,
+                ))
+            } else {
+                Ok(Value::I32(0))
+            }
+        }),
+        TypeDecl::I32,
     );
     proc(
         "get_next_move".to_string(),
-        NativeFn::new(
-            vec![],
-            TypeDecl::I64,
-            Box::new(move |state, _| {
-                if let Some(data) = state.downcast_ref::<VmUserData>() {
-                    let mut state = data.state.borrow_mut();
-                    if let Some(node) = state.path.as_mut().and_then(|path| path.pop()) {
-                        // println!("get_next_move returning {}", node.direction);
-                        return Value::I64(node.direction as i64);
-                    }
+        Box::new(move |state, _| {
+            if let Some(data) = state.downcast_ref::<VmUserData>() {
+                let mut state = data.state.borrow_mut();
+                if let Some(node) = state.path.as_mut().and_then(|path| path.pop()) {
+                    // println!("get_next_move returning {}", node.direction);
+                    return Ok(Value::I64(node.direction as i64));
                 }
-                Value::I64(5)
-            }),
-        ),
+            }
+            Ok(Value::I64(5))
+        }),
+        TypeDecl::I64,
     );
     proc(
         "get_satiety".to_string(),
         get_prop_fn_f(|state| state.satiety as f64),
+        TypeDecl::F64,
     );
 }
 

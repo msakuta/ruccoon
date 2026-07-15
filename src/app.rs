@@ -2,6 +2,7 @@ mod render_bg;
 
 use std::{
     cell::{Cell, RefCell},
+    path::PathBuf,
     rc::Rc,
 };
 
@@ -11,7 +12,6 @@ use eframe::{
 };
 
 use rand::Rng;
-use ruscal::{parse_args, Args};
 
 use crate::{
     bg_image::BgImage,
@@ -57,11 +57,10 @@ pub(crate) struct RuccoonApp {
 
 impl RuccoonApp {
     pub fn new() -> Self {
-        let args = parse_args(true).unwrap_or_else(|| {
-            let mut args = Args::new();
-            args.source = Some("scripts/raccoon.rscl".to_string());
-            args
-        });
+        let source = std::env::args()
+            .nth(1)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("scripts/raccoon.mscl"));
 
         let mut map = vec![MapCell::Empty(0); BOARD_SIZE * BOARD_SIZE];
         let mut rng = rand::thread_rng();
@@ -84,11 +83,11 @@ impl RuccoonApp {
         );
         let map = Rc::new(map);
 
-        let bytecode = match compile_program(&args) {
-            Ok(bytecode) => bytecode,
-            Err(e) => panic!("Compile error: {e}"),
-        };
-        let program = Rc::new(bytecode);
+        // let bytecode = match compile_program(&source) {
+        //     Ok(bytecode) => bytecode,
+        //     Err(e) => panic!("Compile error: {e}"),
+        // };
+        // let program = Rc::new(bytecode);
         let items = Rc::new(RefCell::new(vec![]));
         Self {
             bg: BgImage::new(),
@@ -97,8 +96,13 @@ impl RuccoonApp {
             map: map.clone(),
             raccoon_img: None,
             raccoons: (0..2)
-                .map(|i| Raccoon::new(i, &map, &items, &holes, &program, args.debug_output))
-                .collect(),
+                .map(|i| {
+                    Raccoon::new(i, &map, &items, &holes, || {
+                        compile_program(&source).unwrap()
+                    })
+                })
+                .collect::<Result<_, _>>()
+                .unwrap(),
             corn_img: None,
             items,
             hole_img: None,

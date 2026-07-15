@@ -1,0 +1,45 @@
+
+fn go_to_hole() -> i64 {
+    print("Finding path to hole");
+
+    for i in 0..100 {
+        if is_at_hole() {
+            return 0;
+        }
+        if find_path_to_hole() {
+            yield_(get_next_move());
+        } else {
+            return 0;
+        }
+    }
+
+    0
+}
+
+fn go_to_corn() -> i64 {
+    print("Finding path to corn");
+
+    for i in 0..100 {
+        if get_satiety() > 0.6 {
+            return 0;
+        };
+        if find_path_to_corn() {
+            yield_(get_next_move());
+        } else {
+            return 0;
+        }
+    }
+
+    0
+}
+
+for i in 0..10000 {
+
+    if get_satiety() < 0.6 {
+        go_to_corn();
+        yield_(-1);
+    };
+
+    go_to_hole();
+    yield_(-1);
+}

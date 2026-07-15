@@ -10,4 +10,9 @@ eframe = "0.22.0"
 image = "0.24.6"
 rand = "0.8.5"
 # ruscal = { path = "../ruscal" }
-ruscal = { git = "https://github.com/msakuta/ruscal.git" }
+# ruscal = { git = "https://github.com/msakuta/ruscal.git" }
+mascal = {
+    # git = "https://github.com/msakuta/mascal.git"
+    path = "../mascal/parser"
+}
+anyhow = "1.0.103"
