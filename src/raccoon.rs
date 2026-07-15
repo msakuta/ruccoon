@@ -14,7 +14,7 @@ use mascal::{
     Bytecode, CompilerBuilder, FuncDef, NativeCode, NativeFn, TypeCheckContext, TypeCheckError,
     TypeDecl, Value, Vm, type_check,
 };
-use rand::{Rng, rngs::ThreadRng};
+use rand::{RngExt, rngs::ThreadRng};
 
 use crate::app::{BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F, Hole, MapCell};
 
@@ -73,12 +73,12 @@ impl Raccoon {
         holes: &Rc<Vec<Hole>>,
         make_bytecode: impl FnOnce() -> Bytecode,
     ) -> anyhow::Result<Self> {
-        let mut rng = rand::thread_rng();
-        let gen_channel = |rng: &mut ThreadRng| rng.r#gen::<u8>() / 2 + 127;
+        let mut rng = rand::rng();
+        let gen_channel = |rng: &mut ThreadRng| rng.random::<u8>() / 2 + 127;
         let state = Rc::new(RefCell::new(RaccoonState {
             pos: pos2(
-                rng.gen_range(0..BOARD_SIZE) as f32,
-                rng.gen_range(0..BOARD_SIZE) as f32,
+                rng.random_range(0..BOARD_SIZE) as f32,
+                rng.random_range(0..BOARD_SIZE) as f32,
             ),
             tint: Color32::from_rgb(
                 gen_channel(&mut rng),

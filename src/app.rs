@@ -11,7 +11,7 @@ use eframe::{
     epaint::{Pos2, pos2},
 };
 
-use rand::Rng;
+use rand::RngExt;
 
 use crate::{
     bg_image::BgImage,
@@ -63,13 +63,13 @@ impl RuccoonApp {
             .unwrap_or_else(|| PathBuf::from("scripts/raccoon.mscl"));
 
         let mut map = vec![MapCell::Empty(0); BOARD_SIZE * BOARD_SIZE];
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for i in 0..BOARD_SIZE {
             for j in 0..BOARD_SIZE {
-                map[i + BOARD_SIZE * j] = if rng.r#gen::<f32>() < 0.25 {
+                map[i + BOARD_SIZE * j] = if rng.random::<f32>() < 0.25 {
                     MapCell::Wall
                 } else {
-                    MapCell::Empty(rng.gen_range(0..7))
+                    MapCell::Empty(rng.random_range(0..7))
                 };
             }
         }
@@ -120,8 +120,8 @@ impl RuccoonApp {
             // self.paused = true;
         }
 
-        let mut rng = rand::thread_rng();
-        if self.items.borrow().len() < 10 && rng.r#gen::<f64>() < 0.1 {
+        let mut rng = rand::rng();
+        if self.items.borrow().len() < 10 && rng.random::<f64>() < 0.1 {
             let pos = generate_pos(|pos| is_blocked(pos, &self.map, &self.items.borrow()));
             let mut items = self.items.borrow_mut();
             if items.iter().all(|item| *item != pos) {
@@ -169,11 +169,11 @@ fn is_blocked(pos: Pos2, map: &[MapCell], items: &[Pos2]) -> bool {
 }
 
 fn generate_pos(blocked: impl Fn(Pos2) -> bool) -> Pos2 {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     loop {
         let pos = pos2(
-            rng.gen_range(0..BOARD_SIZE) as f32,
-            rng.gen_range(0..BOARD_SIZE) as f32,
+            rng.random_range(0..BOARD_SIZE) as f32,
+            rng.random_range(0..BOARD_SIZE) as f32,
         );
         if !blocked(pos) {
             return pos;
