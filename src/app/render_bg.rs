@@ -21,7 +21,7 @@ impl RuccoonApp {
 
         for y in 0..BOARD_SIZE {
             for x in 0..BOARD_SIZE {
-                match self.map[x + BOARD_SIZE * y] {
+                match self.app_state.borrow().map[x + BOARD_SIZE * y] {
                     MapCell::Empty(weed) => {
                         let file_name = "assets/dirt.png";
                         self.bg.paint(
@@ -60,7 +60,14 @@ impl RuccoonApp {
                         if let Some(texture) =
                             try_insert_with(&mut self.wall_img, "assets/wall.png", painter)
                         {
-                            draw_wall(x, y, &self.map, painter, texture, &to_screen);
+                            draw_wall(
+                                x,
+                                y,
+                                &self.app_state.borrow().map,
+                                painter,
+                                texture,
+                                &to_screen,
+                            );
                         }
                     }
                 };
@@ -87,7 +94,7 @@ impl RuccoonApp {
         let font = FontId::proportional(18.);
 
         if let Some(texture) = try_insert_with(&mut self.hole_img, "assets/hole.png", painter) {
-            for hole in self.holes.iter() {
+            for hole in self.app_state.borrow().holes.iter() {
                 let rect = Rect::from_min_size(
                     (hole.pos.to_vec2() * CELL_SIZE_F).to_pos2(),
                     Vec2::splat(CELL_SIZE_F),
@@ -104,15 +111,15 @@ impl RuccoonApp {
 
         if let Some(texture) = try_insert_with(&mut self.raccoon_img, "assets/raccoon.png", painter)
         {
-            let size = texture.size_vec2();
+            let size = Vec2::splat(CELL_SIZE_F);
             for raccoon in &self.raccoons {
                 raccoon.render(painter, texture, size, &to_screen, font.clone());
             }
         }
 
         if let Some(texture) = try_insert_with(&mut self.corn_img, "assets/corn.png", painter) {
-            let size = texture.size_vec2();
-            for item in self.items.borrow().iter() {
+            let size = Vec2::splat(CELL_SIZE_F);
+            for item in self.app_state.borrow().items.iter() {
                 let min = item.to_vec2() * CELL_SIZE_F;
                 let max = min + size;
                 let rect = Rect {

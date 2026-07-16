@@ -1,4 +1,5 @@
 mod render_bg;
+mod state;
 
 use std::{
     cell::{Cell, RefCell},
@@ -19,9 +20,11 @@ use crate::{
     raccoon::{Raccoon, compile_program},
 };
 
-pub(crate) const CELL_SIZE: usize = 64;
+pub(crate) use self::state::RaccoonAppState;
+
+pub(crate) const CELL_SIZE: usize = 32;
 pub(crate) const CELL_SIZE_F: f32 = CELL_SIZE as f32;
-pub(crate) const BOARD_SIZE: usize = 12;
+pub(crate) const BOARD_SIZE: usize = 24;
 pub(crate) const BOARD_SIZE_I: i32 = BOARD_SIZE as i32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,14 +48,12 @@ pub(crate) struct RuccoonApp {
     bg: BgImage,
     weeds_img: Option<egui::TextureHandle>,
     wall_img: Option<egui::TextureHandle>,
-    map: Rc<Vec<MapCell>>,
     raccoon_img: Option<egui::TextureHandle>,
     raccoons: Vec<Raccoon>,
     corn_img: Option<egui::TextureHandle>,
-    items: Rc<RefCell<Vec<Pos2>>>,
     hole_img: Option<egui::TextureHandle>,
-    holes: Rc<Vec<Hole>>,
     last_animate: Option<std::time::Instant>,
+    app_state: Rc<RefCell<RaccoonAppState>>,
     paused: bool,
 }
 
@@ -80,32 +81,32 @@ impl RuccoonApp {
                 };
             }
         }
-        let holes = Rc::new(
-            (0..2)
-                .map(|_| Hole {
-                    pos: generate_pos(|pos| is_blocked(pos, &map, &[])),
-                    occupied: Cell::new(false),
-                })
-                .collect(),
-        );
-        let map = Rc::new(map);
+        let holes = (0..2)
+            .map(|_| Hole {
+                pos: generate_pos(|pos| is_blocked(pos, &map, &[])),
+                occupied: Cell::new(false),
+            })
+            .collect();
 
-        let items = Rc::new(RefCell::new(vec![]));
+        let app_state = Rc::new(RefCell::new(RaccoonAppState {
+            map,
+            items: vec![],
+            holes,
+        }));
+
         Self {
             bg: BgImage::new(),
             weeds_img: None,
             wall_img: None,
-            map: map.clone(),
             raccoon_img: None,
             raccoons: (0..2)
-                .map(|i| Raccoon::new(i, &map, &items, &holes, bytecode))
+                .map(|i| Raccoon::new(i, &app_state, bytecode))
                 .collect::<Result<_, _>>()
                 .unwrap(),
             corn_img: None,
-            items,
             hole_img: None,
-            holes,
             last_animate: None,
+            app_state,
             paused: false,
         }
     }
@@ -113,15 +114,16 @@ impl RuccoonApp {
     fn animate(&mut self) {
         if !self.paused {
             for raccoon in &self.raccoons {
-                raccoon.animate(&self.raccoons, &self.map, &self.items, &self.holes);
+                raccoon.animate(&self.raccoons, &self.app_state);
             }
             // self.paused = true;
         }
 
         let mut rng = rand::rng();
-        if self.items.borrow().len() < 10 && rng.random::<f64>() < 0.1 {
-            let pos = generate_pos(|pos| is_blocked(pos, &self.map, &self.items.borrow()));
-            let mut items = self.items.borrow_mut();
+        let mut app_state = self.app_state.borrow_mut();
+        if app_state.items.len() < 10 && rng.random::<f64>() < 0.1 {
+            let pos = generate_pos(|pos| is_blocked(pos, &app_state.map, &app_state.items));
+            let items = &mut app_state.items;
             if items.iter().all(|item| *item != pos) {
                 items.push(pos);
             }
