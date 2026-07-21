@@ -387,14 +387,68 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
         get_prop_fn_f(|state| state.satiety as f64),
         TypeDecl::F64,
     );
+
+    let array_of_int2 = TypeDecl::Array(Box::new(TypeDecl::I32), ArraySize::Any);
+    let array_of_int2_copy = array_of_int2.clone();
     proc(
-        "get_enemy".to_string(),
+        "get_enemies".to_string(),
         Box::new(move |state, _| {
             let data = downcast(state)?;
-            let mut state = data.state.borrow_mut();
+            let app_state = data.app_state.borrow();
+            let array = app_state
+                .raccoons
+                .iter()
+                .map(|raccoon| {
+                    let pos = raccoon.borrow().pos;
+                    Value::Array(ArrayInt::new(
+                        TypeDecl::I32,
+                        vec![Value::I32(pos.x as i32), Value::I32(pos.y as i32)],
+                    ))
+                })
+                .collect::<Vec<_>>();
+            Ok(Value::Array(ArrayInt::new(
+                array_of_int2_copy.clone(),
+                array,
+            )))
+        }),
+        array_of_int2,
+    );
+
+    proc(
+        "find_enemy".to_string(),
+        Box::new(move |state, _| {
+            let data = downcast(state)?;
+            // let mut state = data.state.borrow_mut();
+            let app_state = data.app_state.borrow();
+            let closest = app_state.raccoons.iter().fold(
+                None,
+                |acc: Option<(Rc<RefCell<RaccoonState>>, f32)>, cur| {
+                    if let Some((acc_state, acc_dist)) = &acc {
+                        if &**acc_state as *const _ != &*data.state as *const _
+                            && let dist = cur.borrow().pos.distance_sq(acc_state.borrow().pos)
+                            && dist < *acc_dist
+                        {
+                            Some((data.state.clone(), dbg!(dist)))
+                        } else {
+                            acc
+                        }
+                    } else {
+                        acc
+                    }
+                },
+            );
+
             Ok(Value::Array(ArrayInt::new(
                 TypeDecl::I32,
-                vec![Value::I32(1), Value::I32(2)],
+                if let Some((closest, _)) = closest {
+                    let closest = closest.borrow();
+                    vec![
+                        Value::I32(closest.pos.x as i32),
+                        Value::I32(closest.pos.y as i32),
+                    ]
+                } else {
+                    vec![]
+                },
             )))
         }),
         TypeDecl::Array(Box::new(TypeDecl::I32), ArraySize::Fixed(2)),

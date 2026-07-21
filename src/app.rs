@@ -81,7 +81,7 @@ impl RuccoonApp {
                 };
             }
         }
-        let holes = (0..2)
+        let holes = (0..4)
             .map(|_| Hole {
                 pos: generate_pos(|pos| is_blocked(pos, &map, &[])),
                 occupied: Cell::new(false),
@@ -90,19 +90,27 @@ impl RuccoonApp {
 
         let app_state = Rc::new(RefCell::new(RaccoonAppState {
             map,
+            raccoons: vec![],
             items: vec![],
             holes,
         }));
+
+        let raccoons: Vec<Raccoon> = (0..4)
+            .map(|i| Raccoon::new(i, &app_state, bytecode))
+            .collect::<Result<_, _>>()
+            .unwrap();
+
+        app_state
+            .borrow_mut()
+            .raccoons
+            .extend(raccoons.iter().map(|raccoon| raccoon.state.clone()));
 
         Self {
             bg: BgImage::new(),
             weeds_img: None,
             wall_img: None,
             raccoon_img: None,
-            raccoons: (0..2)
-                .map(|i| Raccoon::new(i, &app_state, bytecode))
-                .collect::<Result<_, _>>()
-                .unwrap(),
+            raccoons,
             corn_img: None,
             hole_img: None,
             last_animate: None,

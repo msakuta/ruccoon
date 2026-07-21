@@ -6,6 +6,16 @@ fn go_to_hole() -> i64 {
         if is_at_hole() {
             return 0;
         }
+
+        print("Enemies: ", len(get_enemies()));
+
+        var enemy = find_enemy();
+        if 1 < len(enemy) {
+            print("enemy: ", enemy[0], enemy[1]);
+        } else {
+            print("Enemy not found");
+        }
+
         if find_path_to_hole() {
             yield_(get_next_move());
         } else {
@@ -32,6 +42,9 @@ fn go_to_corn() -> i64 {
 
     0
 }
+
+var enemy_found: i32 = 0;
+var enemy_pos: [i32] = [];
 
 for i in 0..10000 {
 
