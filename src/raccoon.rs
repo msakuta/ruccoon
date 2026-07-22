@@ -59,8 +59,19 @@ pub(crate) struct RaccoonState {
 }
 
 struct VmUserData {
-    state: Rc<RefCell<RaccoonState>>,
+    this_id: usize,
     app_state: Rc<RefCell<RaccoonAppState>>,
+}
+
+impl VmUserData {
+    fn get(&self) -> Result<Rc<RefCell<RaccoonState>>, EvalError> {
+        let app_state = self.app_state.borrow();
+        let res = app_state
+            .raccoons
+            .get(self.this_id)
+            .ok_or_else(|| EvalError::Other("Failed to get Raccoon state".to_string()))?;
+        Ok(res.clone())
+    }
 }
 
 impl Raccoon {
@@ -94,7 +105,7 @@ impl Raccoon {
                 Vm::start_main(
                     bytecode,
                     Rc::new(VmUserData {
-                        state,
+                        this_id: id,
                         app_state: app_state.clone(),
                     }),
                     // debug_output,
@@ -262,8 +273,9 @@ pub(crate) fn compile_program(src_file: &Path) -> Result<Bytecode, CompileError>
             if let Some(user_data) = ctx.downcast_ref::<VmUserData>()
                 && let Some(arg) = args.first()
                 && let Ok(arg) = mascal::coercion::coerce_i32(arg)
+                && let Some(state) = user_data.app_state.borrow().raccoons.get(user_data.this_id)
             {
-                user_data.state.borrow_mut().yielded = Some(arg);
+                state.borrow_mut().yielded = Some(arg);
             }
             Ok(Value::I32(0))
         }),
@@ -281,8 +293,10 @@ pub(crate) fn compile_program(src_file: &Path) -> Result<Bytecode, CompileError>
 
 fn get_prop_fn(get: fn(&RaccoonState) -> i32) -> NativeFn {
     Box::new(move |state, _| {
-        if let Some(data) = state.downcast_ref::<VmUserData>() {
-            Ok(Value::I32(get(&data.state.borrow())))
+        if let Some(data) = state.downcast_ref::<VmUserData>()
+            && let Some(state) = data.app_state.borrow().raccoons.get(data.this_id)
+        {
+            Ok(Value::I32(get(&state.borrow())))
         } else {
             Ok(Value::I32(0))
         }
@@ -291,8 +305,10 @@ fn get_prop_fn(get: fn(&RaccoonState) -> i32) -> NativeFn {
 
 fn get_prop_fn_f(get: fn(&RaccoonState) -> f64) -> NativeFn {
     Box::new(move |data, _| {
-        if let Some(data) = data.downcast_ref::<VmUserData>() {
-            Ok(Value::F64(get(&data.state.borrow())))
+        if let Some(data) = data.downcast_ref::<VmUserData>()
+            && let Some(state) = data.app_state.borrow().raccoons.get(data.this_id)
+        {
+            Ok(Value::F64(get(&state.borrow())))
         } else {
             Ok(Value::F64(0.))
         }
@@ -320,7 +336,8 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
         "find_path_to_corn".to_string(),
         Box::new(move |state, _| {
             let data = downcast(state)?;
-            let mut state = data.state.borrow_mut();
+            let state = data.get()?;
+            let mut state = state.borrow_mut();
             let app_state = data.app_state.borrow();
             state.path = find_path(
                 [state.pos.x as i32, state.pos.y as i32],
@@ -335,7 +352,8 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
         "find_path_to_hole".to_string(),
         Box::new(move |state, _| {
             let data = downcast(state)?;
-            let mut state = data.state.borrow_mut();
+            let state = data.get()?;
+            let mut state = state.borrow_mut();
             let app_state = data.app_state.borrow();
             let holes: Vec<_> = app_state
                 .holes
@@ -361,7 +379,8 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
         "is_at_hole".to_string(),
         Box::new(move |state, _| {
             let data = downcast(state)?;
-            let state = data.state.borrow();
+            let state = data.get()?;
+            let state = state.borrow();
             let app_state = data.app_state.borrow();
             Ok(Value::I32(
                 (app_state.holes.iter().any(|hole| state.pos == hole.pos)) as i32,
@@ -373,7 +392,8 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
         "get_next_move".to_string(),
         Box::new(move |state, _| {
             let data = downcast(state)?;
-            let mut state = data.state.borrow_mut();
+            let state = data.get()?;
+            let mut state = state.borrow_mut();
             if let Some(node) = state.path.as_mut().and_then(|path| path.pop()) {
                 println!("get_next_move returning {}", node.direction);
                 return Ok(Value::I64(node.direction as i64));
@@ -420,21 +440,27 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             let data = downcast(state)?;
             // let mut state = data.state.borrow_mut();
             let app_state = data.app_state.borrow();
-            let closest = app_state.raccoons.iter().fold(
+            println!(
+                "find_enemy called with {} raccoons",
+                app_state.raccoons.len()
+            );
+            let Some(pos) = app_state
+                .raccoons
+                .get(data.this_id)
+                .map(|raccoon| raccoon.borrow().pos)
+            else {
+                return Err(EvalError::Other("This raccoon is invalid".to_string()));
+            };
+            let closest = app_state.raccoons.iter().enumerate().fold(
                 None,
                 |acc: Option<(Rc<RefCell<RaccoonState>>, f32)>, cur| {
-                    if let Some((acc_state, acc_dist)) = &acc {
-                        if &**acc_state as *const _ != &*data.state as *const _
-                            && let dist = cur.borrow().pos.distance_sq(acc_state.borrow().pos)
-                            && dist < *acc_dist
-                        {
-                            Some((data.state.clone(), dbg!(dist)))
-                        } else {
-                            acc
-                        }
-                    } else {
-                        acc
+                    let dist = cur.1.borrow().pos.distance_sq(pos);
+                    if cur.0 == data.this_id
+                        || acc.as_ref().is_some_and(|(_, acc_dist)| *acc_dist < dist)
+                    {
+                        return acc;
                     }
+                    Some((cur.1.clone(), dist))
                 },
             );
 
