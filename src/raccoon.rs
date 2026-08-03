@@ -158,7 +158,7 @@ impl Raccoon {
         let prev_pos = self.state.borrow().pos;
         if let Some(direction) = DIRECTIONS.get(direction_code as usize) {
             let mut state = self.state.borrow_mut();
-            let mut pos = state.pos + *direction;
+            let mut pos = state.pos + *direction * 0.1;
 
             if pos.x < 0. {
                 pos.x = 0.;
@@ -340,7 +340,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             let mut state = state.borrow_mut();
             let app_state = data.app_state.borrow();
             state.path = find_path(
-                [state.pos.x as i32, state.pos.y as i32],
+                [state.pos.x.round() as i32, state.pos.y.round() as i32],
                 &app_state.map,
                 &app_state.items,
             );

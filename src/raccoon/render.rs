@@ -17,7 +17,7 @@ impl Raccoon {
         font: FontId,
     ) {
         let state = self.state.borrow();
-        let min = state.pos.to_vec2() * CELL_SIZE_F;
+        let min = (state.pos.to_vec2() - Vec2::new(0.5, 0.5)) * CELL_SIZE_F;
         let max = min + size;
         let rect = Rect {
             min: min.to_pos2(),
@@ -26,19 +26,14 @@ impl Raccoon {
         const UV: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
         painter.image(texture.id(), to_screen.transform_rect(rect), UV, state.tint);
 
-        let bar_bg = Rect::from_min_size(
-            (state.pos.to_vec2() * CELL_SIZE_F).to_pos2(),
-            vec2(CELL_SIZE_F, 10.),
-        );
+        let bar_min = ((state.pos.to_vec2() - Vec2::new(0.5, 0.5)) * CELL_SIZE_F).to_pos2();
+        let bar_bg = Rect::from_min_size(bar_min, vec2(CELL_SIZE_F, 10.));
         painter.rect_filled(
             to_screen.transform_rect(bar_bg),
             0.,
             Color32::from_rgb(31, 31, 31),
         );
-        let bar_rect = Rect::from_min_size(
-            (state.pos.to_vec2() * CELL_SIZE_F).to_pos2(),
-            vec2(state.satiety * CELL_SIZE_F, 10.),
-        );
+        let bar_rect = Rect::from_min_size(bar_min, vec2(state.satiety * CELL_SIZE_F, 10.));
         let bar_color = if state.satiety < 0.3 {
             Color32::RED
         } else if state.satiety < 0.6 {
