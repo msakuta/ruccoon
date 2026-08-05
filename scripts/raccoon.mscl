@@ -11,6 +11,9 @@ fn go_to_hole() -> i64 {
 
         var enemy = find_enemy();
         if 1 < len(enemy) {
+            var this_pos = get_pos();
+            shoot(enemy[0] - this_pos[0], enemy[1] - this_pos[1]);
+
             print("enemy: ", enemy[0], enemy[1]);
         } else {
             print("Enemy not found");

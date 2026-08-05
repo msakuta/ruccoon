@@ -136,6 +136,11 @@ impl RuccoonApp {
             }
         }
 
+        let app_state = self.app_state.borrow();
+        for bullet in &app_state.bullets {
+            bullet.render(painter, &to_screen);
+        }
+
         Ok(())
     }
 }

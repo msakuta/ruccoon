@@ -1,5 +1,6 @@
 mod app;
 mod bg_image;
+mod bullet;
 mod raccoon;
 
 use app::{BOARD_SIZE, CELL_SIZE, RuccoonApp};

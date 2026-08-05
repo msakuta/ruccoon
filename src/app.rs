@@ -93,6 +93,7 @@ impl RuccoonApp {
             raccoons: vec![],
             items: vec![],
             holes,
+            bullets: vec![],
         }));
 
         let raccoons: Vec<Raccoon> = (0..4)
@@ -136,6 +137,14 @@ impl RuccoonApp {
                 items.push(pos);
             }
         }
+
+        app_state.bullets.retain_mut(|bullet| {
+            bullet.pos += bullet.velo;
+            !(bullet.pos.x < 0.
+                || CELL_SIZE_F < bullet.pos.x
+                || bullet.pos.y < 0.
+                || CELL_SIZE_F < bullet.pos.y)
+        });
     }
 }
 

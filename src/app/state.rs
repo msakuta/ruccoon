@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use eframe::egui::Pos2;
 
-use crate::raccoon::RaccoonState;
+use crate::{bullet::Bullet, raccoon::RaccoonState};
 
 use super::{Hole, MapCell};
 
@@ -11,4 +11,5 @@ pub(crate) struct RaccoonAppState {
     pub map: Vec<MapCell>,
     pub items: Vec<Pos2>,
     pub holes: Vec<Hole>,
+    pub bullets: Vec<Bullet>,
 }

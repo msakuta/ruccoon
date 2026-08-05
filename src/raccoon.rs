@@ -12,11 +12,15 @@ use anyhow::Context;
 use eframe::epaint::{Color32, Pos2, Vec2, pos2};
 use mascal::{
     Bytecode, CompilerBuilder, EvalError, FuncDef, NativeCode, NativeFn, TypeCheckContext,
-    TypeCheckError, TypeDecl, Value, Vm, type_check, type_decl::ArraySize, value::ArrayInt,
+    TypeCheckError, TypeDecl, Value, Vm, coercion::coerce_f32, type_check, type_decl::ArraySize,
+    value::ArrayInt,
 };
 use rand::{RngExt, rngs::ThreadRng};
 
-use crate::app::{BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F, MapCell, RaccoonAppState};
+use crate::{
+    app::{BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F, MapCell, RaccoonAppState},
+    bullet::Bullet,
+};
 
 const DIRECTIONS: [Vec2; 4] = [
     Vec2::new(-1., 0.),
@@ -408,8 +412,8 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
         TypeDecl::F64,
     );
 
-    let array_of_int2 = TypeDecl::Array(Box::new(TypeDecl::I32), ArraySize::Any);
-    let array_of_int2_copy = array_of_int2.clone();
+    let array_of_2f32 = TypeDecl::Array(Box::new(TypeDecl::F32), ArraySize::Any);
+    let array_of_2f32_copy = array_of_2f32.clone();
     proc(
         "get_enemies".to_string(),
         Box::new(move |state, _| {
@@ -427,11 +431,11 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
                 })
                 .collect::<Vec<_>>();
             Ok(Value::Array(ArrayInt::new(
-                array_of_int2_copy.clone(),
+                array_of_2f32_copy.clone(),
                 array,
             )))
         }),
-        array_of_int2,
+        array_of_2f32,
     );
 
     proc(
@@ -465,19 +469,58 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             );
 
             Ok(Value::Array(ArrayInt::new(
-                TypeDecl::I32,
+                TypeDecl::F32,
                 if let Some((closest, _)) = closest {
                     let closest = closest.borrow();
-                    vec![
-                        Value::I32(closest.pos.x as i32),
-                        Value::I32(closest.pos.y as i32),
-                    ]
+                    vec![Value::F32(closest.pos.x), Value::F32(closest.pos.y)]
                 } else {
                     vec![]
                 },
             )))
         }),
-        TypeDecl::Array(Box::new(TypeDecl::I32), ArraySize::Fixed(2)),
+        TypeDecl::Array(Box::new(TypeDecl::F32), ArraySize::Fixed(2)),
+    );
+
+    proc(
+        "get_pos".to_string(),
+        Box::new(move |state, _| {
+            let state = downcast(state)?;
+            let app_state = state.app_state.borrow_mut();
+            let Some(this) = app_state.raccoons.get(state.this_id) else {
+                return Err(EvalError::Other("This Raccoon acquire failed".to_string()));
+            };
+            let this_pos = this.borrow().pos;
+            Ok(Value::Array(ArrayInt::new(
+                TypeDecl::F32,
+                vec![Value::F32(this_pos.x), Value::F32(this_pos.y)],
+            )))
+        }),
+        TypeDecl::Array(Box::new(TypeDecl::F32), ArraySize::Fixed(2)),
+    );
+
+    proc(
+        "shoot".to_string(),
+        Box::new(move |state, args| {
+            let state = downcast(state)?;
+            let mut app_state = state.app_state.borrow_mut();
+            let Some(this) = app_state.raccoons.get(state.this_id) else {
+                return Err(EvalError::Other("This Raccoon acquire failed".to_string()));
+            };
+            let this_pos = this.borrow().pos;
+            let Some(pos) = args.get(0..2) else {
+                return Err(EvalError::Other(
+                    "Shoot requires at least 2 arguments".to_string(),
+                ));
+            };
+            let x = coerce_f32(&pos[0])?;
+            let y = coerce_f32(&pos[1])?;
+            app_state.bullets.push(Bullet {
+                pos: this_pos.to_vec2(),
+                velo: Vec2::new(x, y).normalized() * 1.,
+            });
+            Ok(Value::I32(0))
+        }),
+        TypeDecl::I32,
     );
 }
 
