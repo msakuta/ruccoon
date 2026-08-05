@@ -9,14 +9,16 @@ fn go_to_hole() -> i64 {
 
         print("Enemies: ", len(get_enemies()));
 
-        var enemy = find_enemy();
-        if 1 < len(enemy) {
-            var this_pos = get_pos();
-            shoot(enemy[0] - this_pos[0], enemy[1] - this_pos[1]);
+        if 0 == get_cooldown() {
+            var enemy = find_enemy();
+            if 1 < len(enemy) {
+                var this_pos = get_pos();
+                shoot(enemy[0] - this_pos[0], enemy[1] - this_pos[1]);
 
-            print("enemy: ", enemy[0], enemy[1]);
-        } else {
-            print("Enemy not found");
+                print("enemy: ", enemy[0], enemy[1]);
+            } else {
+                print("Enemy not found");
+            }
         }
 
         if find_path_to_hole() {

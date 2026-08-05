@@ -31,6 +31,7 @@ const DIRECTIONS: [Vec2; 4] = [
 
 const CORN_ENERGY: f32 = 0.2;
 const HUNGER_RATE: f32 = 0.005;
+const SHOOT_COOLDOWN: i32 = 5;
 
 pub(crate) struct Raccoon {
     id: usize,
@@ -60,6 +61,7 @@ pub(crate) struct RaccoonState {
     pub(crate) ate: usize,
     pub(crate) satiety: f32,
     yielded: Option<i32>,
+    cooldown: i32,
 }
 
 struct VmUserData {
@@ -100,6 +102,7 @@ impl Raccoon {
             ate: 0,
             satiety: 0.5,
             yielded: None,
+            cooldown: 0,
         }));
 
         Ok(Self {
@@ -181,6 +184,8 @@ impl Raccoon {
         }
 
         let mut state = self.state.borrow_mut();
+        state.cooldown = (state.cooldown - 1).max(0);
+
         let mut app_state = app_state.borrow_mut();
         if let Some((i, _)) = app_state
             .items
@@ -506,7 +511,13 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             let Some(this) = app_state.raccoons.get(state.this_id) else {
                 return Err(EvalError::Other("This Raccoon acquire failed".to_string()));
             };
-            let this_pos = this.borrow().pos;
+            let mut this = this.borrow_mut();
+            if 0 < this.cooldown {
+                return Ok(Value::I32(0));
+            }
+            this.cooldown += SHOOT_COOLDOWN;
+            let this_pos = this.pos;
+            drop(this);
             let Some(pos) = args.get(0..2) else {
                 return Err(EvalError::Other(
                     "Shoot requires at least 2 arguments".to_string(),
@@ -520,6 +531,12 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             });
             Ok(Value::I32(0))
         }),
+        TypeDecl::I32,
+    );
+
+    proc(
+        "get_cooldown".to_string(),
+        get_prop_fn(|state| state.cooldown),
         TypeDecl::I32,
     );
 }
