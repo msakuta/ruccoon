@@ -528,6 +528,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             app_state.bullets.push(Bullet {
                 pos: this_pos.to_vec2(),
                 velo: Vec2::new(x, y).normalized() * 1.,
+                owner: state.this_id,
             });
             Ok(Value::I32(0))
         }),

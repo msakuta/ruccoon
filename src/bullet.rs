@@ -1,31 +1,50 @@
+use std::{cell::RefCell, rc::Rc};
+
 use eframe::{
     egui::{Color32, Painter, Rect, Vec2},
     emath::RectTransform,
 };
 
-use crate::app::CELL_SIZE_F;
+use crate::{app::CELL_SIZE_F, raccoon::RaccoonState};
 
-const BULLET_SIZE_F: f32 = 12.;
+const BULLET_SIZE_F: f32 = 6.;
 
 pub struct Bullet {
     /// Position in cell coordinates
     pub pos: Vec2,
     pub velo: Vec2,
+    pub owner: usize,
 }
 
 impl Bullet {
     pub fn render(&self, painter: &Painter, to_screen: &RectTransform) {
-        let min = self.pos * CELL_SIZE_F - Vec2::new(0.5, 0.5) * BULLET_SIZE_F;
-        let max = min + Vec2::splat(BULLET_SIZE_F);
-        let rect = Rect {
-            min: min.to_pos2(),
-            max: max.to_pos2(),
-        };
-        // const UV: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-        // painter.image(texture.id(), to_screen.transform_rect(rect), UV, state.tint);
-
         let color = Color32::YELLOW;
 
-        painter.rect_filled(to_screen.transform_rect(rect), 0., color);
+        painter.circle_filled(
+            to_screen.transform_pos((self.pos * CELL_SIZE_F).to_pos2()),
+            BULLET_SIZE_F,
+            color,
+        );
+    }
+
+    /// Returns whether the bullet should be alive
+    pub fn animate(&mut self, raccoons: &[Rc<RefCell<RaccoonState>>]) -> bool {
+        self.pos += self.velo;
+
+        for (i, raccoon) in raccoons.iter().enumerate() {
+            if i != self.owner {
+                let raccoon = raccoon.borrow();
+                if raccoon.pos.distance_sq(self.pos.to_pos2())
+                    < (BULLET_SIZE_F / CELL_SIZE_F).powi(2)
+                {
+                    return false;
+                }
+            }
+        }
+
+        !(self.pos.x < 0.
+            || CELL_SIZE_F < self.pos.x
+            || self.pos.y < 0.
+            || CELL_SIZE_F < self.pos.y)
     }
 }

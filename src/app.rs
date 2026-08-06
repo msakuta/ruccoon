@@ -138,23 +138,19 @@ impl RuccoonApp {
             }
         }
 
-        app_state.bullets.retain_mut(|bullet| {
-            bullet.pos += bullet.velo;
-            !(bullet.pos.x < 0.
-                || CELL_SIZE_F < bullet.pos.x
-                || bullet.pos.y < 0.
-                || CELL_SIZE_F < bullet.pos.y)
-        });
+        let mut bullets = std::mem::take(&mut app_state.bullets);
+        bullets.retain_mut(|bullet| bullet.animate(&app_state.raccoons));
+        app_state.bullets = bullets;
     }
 }
 
 impl eframe::App for RuccoonApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
-        ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        ctx.request_repaint_after(std::time::Duration::from_millis(50));
         let now = std::time::Instant::now();
         if !self
             .last_animate
-            .is_some_and(|time| !(std::time::Duration::from_millis(100) < now - time))
+            .is_some_and(|time| !(std::time::Duration::from_millis(50) < now - time))
         {
             self.animate();
             self.last_animate = Some(now);
