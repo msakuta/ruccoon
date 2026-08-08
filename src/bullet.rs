@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use eframe::{
-    egui::{Color32, Painter, Rect, Vec2},
+    egui::{Color32, Painter, Vec2},
     emath::RectTransform,
 };
 
@@ -35,7 +35,7 @@ impl Bullet {
             if i != self.owner {
                 let raccoon = raccoon.borrow();
                 if raccoon.pos.distance_sq(self.pos.to_pos2())
-                    < (BULLET_SIZE_F / CELL_SIZE_F).powi(2)
+                    < ((BULLET_SIZE_F + 1.) / CELL_SIZE_F).powi(2)
                 {
                     return false;
                 }

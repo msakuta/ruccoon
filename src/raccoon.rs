@@ -152,10 +152,13 @@ impl Raccoon {
                 return true;
             }
             if others.iter().any(|other| {
+                if self.id != other.id {
+                    return false;
+                }
                 let Ok(other_state) = other.state.try_borrow() else {
                     return false;
                 };
-                other_state.pos == pos
+                other_state.pos.distance_sq(pos) < 1.
             }) {
                 return true;
             }
@@ -163,7 +166,9 @@ impl Raccoon {
         };
 
         let prev_pos = self.state.borrow().pos;
-        if let Some(direction) = DIRECTIONS.get(direction_code as usize) {
+        if 0 < direction_code
+            && let Some(direction) = DIRECTIONS.get(direction_code as usize)
+        {
             let mut state = self.state.borrow_mut();
             let mut pos = state.pos + *direction * 0.1;
 

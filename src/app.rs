@@ -96,10 +96,25 @@ impl RuccoonApp {
             bullets: vec![],
         }));
 
-        let raccoons: Vec<Raccoon> = (0..4)
-            .map(|i| Raccoon::new(i, &app_state, bytecode))
-            .collect::<Result<_, _>>()
-            .unwrap();
+        const RETRIES: usize = 10;
+        let mut raccoons: Vec<Raccoon> = vec![];
+        for i in 0..4 {
+            for _ in 0..RETRIES {
+                let Ok(candidate) = Raccoon::new(i, &app_state, bytecode) else {
+                    continue;
+                };
+                let cand_pos = candidate.state.borrow().pos;
+                if raccoons
+                    .iter()
+                    .any(|r| r.state.borrow().pos.distance_sq(cand_pos) < 1.)
+                {
+                    println!("Overlapping raccoon at {cand_pos:?}");
+                    continue;
+                }
+                raccoons.push(candidate);
+                break;
+            }
+        }
 
         app_state
             .borrow_mut()
