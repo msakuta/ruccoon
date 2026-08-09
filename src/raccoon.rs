@@ -32,6 +32,7 @@ const DIRECTIONS: [Vec2; 4] = [
 const CORN_ENERGY: f32 = 0.2;
 const HUNGER_RATE: f32 = 0.005;
 const SHOOT_COOLDOWN: i32 = 5;
+const MAX_HEALTH: f32 = 10.;
 
 pub(crate) struct Raccoon {
     id: usize,
@@ -62,6 +63,7 @@ pub(crate) struct RaccoonState {
     pub(crate) satiety: f32,
     yielded: Option<i32>,
     cooldown: i32,
+    pub(crate) health: f32,
 }
 
 struct VmUserData {
@@ -74,7 +76,7 @@ impl VmUserData {
         let app_state = self.app_state.borrow();
         let res = app_state
             .raccoons
-            .get(self.this_id)
+            .get(&self.this_id)
             .ok_or_else(|| EvalError::Other("Failed to get Raccoon state".to_string()))?;
         Ok(res.clone())
     }
@@ -103,6 +105,7 @@ impl Raccoon {
             satiety: 0.5,
             yielded: None,
             cooldown: 0,
+            health: MAX_HEALTH,
         }));
 
         Ok(Self {
@@ -122,7 +125,11 @@ impl Raccoon {
         })
     }
 
-    pub(crate) fn animate(&self, others: &[Raccoon], app_state: &Rc<RefCell<RaccoonAppState>>) {
+    pub(crate) fn animate(
+        &self,
+        others: &HashMap<usize, Raccoon>,
+        app_state: &Rc<RefCell<RaccoonAppState>>,
+    ) -> bool {
         let mut vm = self.vm.borrow_mut();
 
         let direction_code = loop {
@@ -130,7 +137,7 @@ impl Raccoon {
                 Ok(res) => res,
                 Err(e) => {
                     println!("next_inst Error: {e}");
-                    return;
+                    return true;
                 }
             };
             print!(".");
@@ -146,12 +153,13 @@ impl Raccoon {
 
         let is_blocked = |pos: Pos2| {
             if !matches!(
-                app_state.borrow().map[pos.x as usize + pos.y as usize * BOARD_SIZE],
+                app_state.borrow().map
+                    [pos.x.round() as usize + pos.y.round() as usize * BOARD_SIZE],
                 MapCell::Empty(_)
             ) {
                 return true;
             }
-            if others.iter().any(|other| {
+            if others.values().any(|other| {
                 if self.id != other.id {
                     return false;
                 }
@@ -219,6 +227,8 @@ impl Raccoon {
         if let Some(hole) = app_state.holes.iter().find(|hole| state.pos == hole.pos) {
             hole.occupied.set(true);
         }
+
+        0. < state.health
     }
 }
 
@@ -287,7 +297,11 @@ pub(crate) fn compile_program(src_file: &Path) -> Result<Bytecode, CompileError>
             if let Some(user_data) = ctx.downcast_ref::<VmUserData>()
                 && let Some(arg) = args.first()
                 && let Ok(arg) = mascal::coercion::coerce_i32(arg)
-                && let Some(state) = user_data.app_state.borrow().raccoons.get(user_data.this_id)
+                && let Some(state) = user_data
+                    .app_state
+                    .borrow()
+                    .raccoons
+                    .get(&user_data.this_id)
             {
                 state.borrow_mut().yielded = Some(arg);
             }
@@ -308,7 +322,7 @@ pub(crate) fn compile_program(src_file: &Path) -> Result<Bytecode, CompileError>
 fn get_prop_fn(get: fn(&RaccoonState) -> i32) -> NativeFn {
     Box::new(move |state, _| {
         if let Some(data) = state.downcast_ref::<VmUserData>()
-            && let Some(state) = data.app_state.borrow().raccoons.get(data.this_id)
+            && let Some(state) = data.app_state.borrow().raccoons.get(&data.this_id)
         {
             Ok(Value::I32(get(&state.borrow())))
         } else {
@@ -320,7 +334,7 @@ fn get_prop_fn(get: fn(&RaccoonState) -> i32) -> NativeFn {
 fn get_prop_fn_f(get: fn(&RaccoonState) -> f64) -> NativeFn {
     Box::new(move |data, _| {
         if let Some(data) = data.downcast_ref::<VmUserData>()
-            && let Some(state) = data.app_state.borrow().raccoons.get(data.this_id)
+            && let Some(state) = data.app_state.borrow().raccoons.get(&data.this_id)
         {
             Ok(Value::F64(get(&state.borrow())))
         } else {
@@ -432,7 +446,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             let array = app_state
                 .raccoons
                 .iter()
-                .map(|raccoon| {
+                .map(|(_, raccoon)| {
                     let pos = raccoon.borrow().pos;
                     Value::Array(ArrayInt::new(
                         TypeDecl::I32,
@@ -460,7 +474,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             );
             let Some(pos) = app_state
                 .raccoons
-                .get(data.this_id)
+                .get(&data.this_id)
                 .map(|raccoon| raccoon.borrow().pos)
             else {
                 return Err(EvalError::Other("This raccoon is invalid".to_string()));
@@ -468,13 +482,13 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             let closest = app_state.raccoons.iter().enumerate().fold(
                 None,
                 |acc: Option<(Rc<RefCell<RaccoonState>>, f32)>, cur| {
-                    let dist = cur.1.borrow().pos.distance_sq(pos);
+                    let dist = cur.1.1.borrow().pos.distance_sq(pos);
                     if cur.0 == data.this_id
                         || acc.as_ref().is_some_and(|(_, acc_dist)| *acc_dist < dist)
                     {
                         return acc;
                     }
-                    Some((cur.1.clone(), dist))
+                    Some((cur.1.1.clone(), dist))
                 },
             );
 
@@ -496,7 +510,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
         Box::new(move |state, _| {
             let state = downcast(state)?;
             let app_state = state.app_state.borrow_mut();
-            let Some(this) = app_state.raccoons.get(state.this_id) else {
+            let Some(this) = app_state.raccoons.get(&state.this_id) else {
                 return Err(EvalError::Other("This Raccoon acquire failed".to_string()));
             };
             let this_pos = this.borrow().pos;
@@ -513,7 +527,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
         Box::new(move |state, args| {
             let state = downcast(state)?;
             let mut app_state = state.app_state.borrow_mut();
-            let Some(this) = app_state.raccoons.get(state.this_id) else {
+            let Some(this) = app_state.raccoons.get(&state.this_id) else {
                 return Err(EvalError::Other("This Raccoon acquire failed".to_string()));
             };
             let mut this = this.borrow_mut();
@@ -530,9 +544,13 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             };
             let x = coerce_f32(&pos[0])?;
             let y = coerce_f32(&pos[1])?;
+            if x == 0. && y == 0. {
+                println!("WARN: Singular velocity");
+                return Ok(Value::I32(0));
+            }
             app_state.bullets.push(Bullet {
                 pos: this_pos.to_vec2(),
-                velo: Vec2::new(x, y).normalized() * 1.,
+                velo: Vec2::new(x, y).normalized() * 0.5,
                 owner: state.this_id,
             });
             Ok(Value::I32(0))

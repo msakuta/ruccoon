@@ -3,6 +3,7 @@ mod state;
 
 use std::{
     cell::{Cell, RefCell},
+    collections::HashMap,
     path::PathBuf,
     rc::Rc,
 };
@@ -13,6 +14,7 @@ use eframe::{
     epaint::{Pos2, pos2},
 };
 
+use mascal::Bytecode;
 use rand::RngExt;
 
 use crate::{
@@ -20,12 +22,13 @@ use crate::{
     raccoon::{Raccoon, compile_program},
 };
 
-pub(crate) use self::state::RaccoonAppState;
+pub(crate) use self::state::{RaccoonAppState, RaccoonStates};
 
 pub(crate) const CELL_SIZE: usize = 32;
 pub(crate) const CELL_SIZE_F: f32 = CELL_SIZE as f32;
 pub(crate) const BOARD_SIZE: usize = 24;
 pub(crate) const BOARD_SIZE_I: i32 = BOARD_SIZE as i32;
+const RETRIES: usize = 10;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MapCell {
@@ -49,12 +52,14 @@ pub(crate) struct RuccoonApp {
     weeds_img: Option<egui::TextureHandle>,
     wall_img: Option<egui::TextureHandle>,
     raccoon_img: Option<egui::TextureHandle>,
-    raccoons: Vec<Raccoon>,
+    raccoons: HashMap<usize, Raccoon>,
     corn_img: Option<egui::TextureHandle>,
     hole_img: Option<egui::TextureHandle>,
     last_animate: Option<std::time::Instant>,
     app_state: Rc<RefCell<RaccoonAppState>>,
     paused: bool,
+    id_gen: usize,
+    bytecode: &'static Bytecode,
 }
 
 impl RuccoonApp {
@@ -90,14 +95,13 @@ impl RuccoonApp {
 
         let app_state = Rc::new(RefCell::new(RaccoonAppState {
             map,
-            raccoons: vec![],
+            raccoons: HashMap::new(),
             items: vec![],
             holes,
             bullets: vec![],
         }));
 
-        const RETRIES: usize = 10;
-        let mut raccoons: Vec<Raccoon> = vec![];
+        let mut raccoons: HashMap<usize, Raccoon> = HashMap::new();
         for i in 0..4 {
             for _ in 0..RETRIES {
                 let Ok(candidate) = Raccoon::new(i, &app_state, bytecode) else {
@@ -105,21 +109,24 @@ impl RuccoonApp {
                 };
                 let cand_pos = candidate.state.borrow().pos;
                 if raccoons
-                    .iter()
+                    .values()
                     .any(|r| r.state.borrow().pos.distance_sq(cand_pos) < 1.)
                 {
                     println!("Overlapping raccoon at {cand_pos:?}");
                     continue;
                 }
-                raccoons.push(candidate);
+                raccoons.insert(i, candidate);
                 break;
             }
         }
 
-        app_state
-            .borrow_mut()
-            .raccoons
-            .extend(raccoons.iter().map(|raccoon| raccoon.state.clone()));
+        app_state.borrow_mut().raccoons.extend(
+            raccoons
+                .iter()
+                .map(|(i, raccoon)| (*i, raccoon.state.clone())),
+        );
+
+        let id_gen = raccoons.len();
 
         Self {
             bg: BgImage::new(),
@@ -132,14 +139,49 @@ impl RuccoonApp {
             last_animate: None,
             app_state,
             paused: false,
+            id_gen,
+            bytecode,
         }
     }
 
     fn animate(&mut self) {
         if !self.paused {
-            for raccoon in &self.raccoons {
-                raccoon.animate(&self.raccoons, &self.app_state);
+            let mut to_delete = vec![];
+            for (i, raccoon) in &self.raccoons {
+                if !raccoon.animate(&self.raccoons, &self.app_state) {
+                    to_delete.push(*i);
+                }
             }
+
+            let mut app_state = self.app_state.borrow_mut();
+            for i in to_delete {
+                self.raccoons.remove(&i);
+                app_state.raccoons.remove(&i);
+            }
+            drop(app_state);
+
+            if self.raccoons.len() < 4 && rand::random::<f64>() < 0.01 {
+                for _ in 0..RETRIES {
+                    let Ok(candidate) = Raccoon::new(self.id_gen, &self.app_state, self.bytecode)
+                    else {
+                        continue;
+                    };
+                    let cand_pos = candidate.state.borrow().pos;
+
+                    if self.app_state.borrow().is_blocked(None, cand_pos) {
+                        println!("Overlapping raccoon at {cand_pos:?}");
+                        continue;
+                    }
+                    self.app_state
+                        .borrow_mut()
+                        .raccoons
+                        .insert(self.id_gen, candidate.state.clone());
+                    self.raccoons.insert(self.id_gen, candidate);
+                    self.id_gen += 1;
+                    break;
+                }
+            }
+
             // self.paused = true;
         }
 

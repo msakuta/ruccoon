@@ -4,7 +4,7 @@ use eframe::{
     epaint::{Color32, FontId, PathShape, Pos2, Rect, TextureHandle, Vec2, vec2},
 };
 
-use super::Raccoon;
+use super::{MAX_HEALTH, Raccoon};
 use crate::app::CELL_SIZE_F;
 
 impl Raccoon {
@@ -26,14 +26,6 @@ impl Raccoon {
         const UV: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
         painter.image(texture.id(), to_screen.transform_rect(rect), UV, state.tint);
 
-        let bar_min = ((state.pos.to_vec2() - Vec2::new(0.5, 0.5)) * CELL_SIZE_F).to_pos2();
-        let bar_bg = Rect::from_min_size(bar_min, vec2(CELL_SIZE_F, 10.));
-        painter.rect_filled(
-            to_screen.transform_rect(bar_bg),
-            0.,
-            Color32::from_rgb(31, 31, 31),
-        );
-        let bar_rect = Rect::from_min_size(bar_min, vec2(state.satiety * CELL_SIZE_F, 10.));
         let bar_color = if state.satiety < 0.3 {
             Color32::RED
         } else if state.satiety < 0.6 {
@@ -41,12 +33,26 @@ impl Raccoon {
         } else {
             Color32::from_rgb(31, 255, 31)
         };
-        painter.rect_filled(to_screen.transform_rect(bar_rect), 0., bar_color);
+        render_bar(
+            (state.pos.to_vec2() - Vec2::new(0.5, 0.5)) * CELL_SIZE_F,
+            state.satiety,
+            bar_color,
+            painter,
+            to_screen,
+        );
+
+        render_bar(
+            (state.pos.to_vec2() - Vec2::new(0.5, 0.5)) * CELL_SIZE_F + Vec2::Y * 5.,
+            state.health / MAX_HEALTH,
+            Color32::GREEN,
+            painter,
+            to_screen,
+        );
 
         painter.text(
             to_screen.transform_pos(rect.min),
             Align2::CENTER_TOP,
-            state.ate,
+            self.id,
             font.clone(),
             Color32::WHITE,
         );
@@ -59,4 +65,18 @@ impl Raccoon {
             painter.add(PathShape::line(plot, (3., state.tint)));
         }
     }
+}
+
+fn render_bar(pos: Vec2, f: f32, color: Color32, painter: &Painter, to_screen: &RectTransform) {
+    let bar_min = pos.to_pos2();
+    let bar_bg = Rect::from_min_size(bar_min, vec2(CELL_SIZE_F, 5.));
+
+    painter.rect_filled(
+        to_screen.transform_rect(bar_bg),
+        0.,
+        Color32::from_rgb(31, 31, 31),
+    );
+    let bar_rect = Rect::from_min_size(bar_min, vec2(f * CELL_SIZE_F, 5.));
+
+    painter.rect_filled(to_screen.transform_rect(bar_rect), 0., color);
 }

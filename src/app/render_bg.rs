@@ -112,7 +112,7 @@ impl RuccoonApp {
         if let Some(texture) = try_insert_with(&mut self.raccoon_img, "assets/raccoon.png", painter)
         {
             let size = Vec2::splat(CELL_SIZE_F);
-            for raccoon in &self.raccoons {
+            for raccoon in self.raccoons.values() {
                 raccoon.render(painter, texture, size, &to_screen, font.clone());
             }
         }

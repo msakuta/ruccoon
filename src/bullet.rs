@@ -1,13 +1,11 @@
-use std::{cell::RefCell, rc::Rc};
-
 use eframe::{
     egui::{Color32, Painter, Vec2},
     emath::RectTransform,
 };
 
-use crate::{app::CELL_SIZE_F, raccoon::RaccoonState};
+use crate::app::{CELL_SIZE_F, RaccoonStates};
 
-const BULLET_SIZE_F: f32 = 6.;
+const BULLET_SIZE_F: f32 = 4.;
 
 pub struct Bullet {
     /// Position in cell coordinates
@@ -28,15 +26,16 @@ impl Bullet {
     }
 
     /// Returns whether the bullet should be alive
-    pub fn animate(&mut self, raccoons: &[Rc<RefCell<RaccoonState>>]) -> bool {
+    pub fn animate(&mut self, raccoons: &RaccoonStates) -> bool {
         self.pos += self.velo;
 
-        for (i, raccoon) in raccoons.iter().enumerate() {
-            if i != self.owner {
-                let raccoon = raccoon.borrow();
+        for (i, raccoon) in raccoons.iter() {
+            if *i != self.owner {
+                let mut raccoon = raccoon.borrow_mut();
                 if raccoon.pos.distance_sq(self.pos.to_pos2())
                     < ((BULLET_SIZE_F + 1.) / CELL_SIZE_F).powi(2)
                 {
+                    raccoon.health -= 1.;
                     return false;
                 }
             }
