@@ -3,7 +3,8 @@ mod render;
 use std::{
     cell::RefCell,
     cmp::Reverse,
-    collections::{BinaryHeap, HashMap},
+    collections::{BinaryHeap, HashMap, VecDeque},
+    io::Write,
     path::Path,
     rc::Rc,
 };
@@ -64,6 +65,8 @@ pub(crate) struct RaccoonState {
     yielded: Option<i32>,
     cooldown: i32,
     pub(crate) health: f32,
+    pub(crate) log_buffer: VecDeque<Vec<u8>>,
+    pub(crate) instructions: usize,
 }
 
 struct VmUserData {
@@ -106,6 +109,8 @@ impl Raccoon {
             yielded: None,
             cooldown: 0,
             health: MAX_HEALTH,
+            log_buffer: VecDeque::new(),
+            instructions: 0,
         }));
 
         Ok(Self {
@@ -140,11 +145,20 @@ impl Raccoon {
                     return true;
                 }
             };
-            print!(".");
-            if let Some(res) = res {
-                print!("{res:?}");
-            }
+
             let mut state = self.state.borrow_mut();
+            state.instructions += 1;
+
+            let buf = if let Some(buf) = state.log_buffer.front_mut() {
+                buf
+            } else {
+                state.log_buffer.push_front_mut(Vec::new())
+            };
+
+            if let Some(res) = res {
+                write!(buf, "{res:?}").unwrap();
+            }
+
             if let Some(yielded) = state.yielded {
                 state.yielded = None;
                 break yielded;
@@ -351,6 +365,27 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
     }
 
     proc(
+        "print".to_string(),
+        Box::new(move |state, vals| {
+            let data = downcast(state)?;
+            let state = data.get()?;
+            let mut state = state.borrow_mut();
+            let buf = state.log_buffer.push_front_mut(vec![]);
+
+            for val in vals {
+                // Put a space between tokens
+                write!(buf, "{val} ")?;
+            }
+
+            while 100 < state.log_buffer.len() {
+                state.log_buffer.pop_back();
+            }
+            Ok(Value::I32(0))
+        }),
+        TypeDecl::I32,
+    );
+
+    proc(
         "get_x".to_string(),
         get_prop_fn(|state| state.pos.x as i32),
         TypeDecl::I32,
@@ -423,7 +458,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
             let state = data.get()?;
             let mut state = state.borrow_mut();
             if let Some(node) = state.path.as_mut().and_then(|path| path.pop()) {
-                println!("get_next_move returning {}", node.direction);
+                // println!("get_next_move returning {}", node.direction);
                 return Ok(Value::I64(node.direction as i64));
             }
             Ok(Value::I64(5))

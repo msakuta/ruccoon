@@ -29,6 +29,7 @@ pub(crate) const CELL_SIZE_F: f32 = CELL_SIZE as f32;
 pub(crate) const BOARD_SIZE: usize = 24;
 pub(crate) const BOARD_SIZE_I: i32 = BOARD_SIZE as i32;
 const RETRIES: usize = 10;
+pub(crate) const PANEL_MIN_WIDTH: f32 = 200.;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MapCell {
@@ -212,6 +213,34 @@ impl eframe::App for RuccoonApp {
             self.animate();
             self.last_animate = Some(now);
         }
+        eframe::egui::SidePanel::new(egui::panel::Side::Right, "right_panel")
+            .min_width(PANEL_MIN_WIDTH)
+            .show(ctx, |ui| {
+                let (instructions, mut text) = self.raccoons.iter().next().map_or_else(
+                    || (0, "".to_string()),
+                    |(_, r)| {
+                        let state = r.state.borrow();
+
+                        (
+                            state.instructions,
+                            state
+                                .log_buffer
+                                .iter()
+                                .fold("".to_string(), |mut acc, cur| {
+                                    if let Ok(cur) = str::from_utf8(cur) {
+                                        acc.push_str(cur);
+                                        acc.push('\n');
+                                    }
+                                    acc
+                                }),
+                        )
+                    },
+                );
+                ui.label(format!("Instructions: {instructions}"));
+                eframe::egui::ScrollArea::new([false, true]).show(ui, |ui| {
+                    ui.text_edit_multiline(&mut text);
+                });
+            });
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
             Frame::canvas(ui.style()).show(ui, |ui| {
                 let (response, painter) =
