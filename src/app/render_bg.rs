@@ -19,6 +19,21 @@ impl RuccoonApp {
             response.rect,
         );
 
+        let mouse = response.interact(egui::Sense::click());
+        if mouse.clicked()
+            && let Some(pos) = mouse.interact_pointer_pos()
+        {
+            println!("Clicked on the screen: searching nearest raccoon from {pos:?}");
+            for (i, raccoon) in &self.raccoons {
+                let raccoon = raccoon.state.borrow();
+                let raccoon_pos =
+                    dbg!(to_screen.transform_pos((raccoon.pos.to_vec2() * CELL_SIZE_F).to_pos2()));
+                if dbg!(pos.distance_sq(raccoon_pos)) < (20f32).powi(2) {
+                    self.selected_raccoon = Some(*i);
+                }
+            }
+        }
+
         for y in 0..BOARD_SIZE {
             for x in 0..BOARD_SIZE {
                 match self.app_state.borrow().map[x + BOARD_SIZE * y] {
@@ -112,8 +127,13 @@ impl RuccoonApp {
         if let Some(texture) = try_insert_with(&mut self.raccoon_img, "assets/raccoon.png", painter)
         {
             let size = Vec2::splat(CELL_SIZE_F);
-            for raccoon in self.raccoons.values() {
+            for (i, raccoon) in &self.raccoons {
                 raccoon.render(painter, texture, size, &to_screen, font.clone());
+                if Some(*i) == self.selected_raccoon {
+                    let vec_pos = raccoon.state.borrow().pos.to_vec2();
+                    let pos = to_screen.transform_pos((vec_pos * CELL_SIZE_F).to_pos2());
+                    painter.circle_stroke(pos, CELL_SIZE_F * 0.5, (2., Color32::GREEN));
+                }
             }
         }
 

@@ -17,7 +17,7 @@ impl Raccoon {
         font: FontId,
     ) {
         let state = self.state.borrow();
-        let min = (state.pos.to_vec2() - Vec2::new(0.5, 0.5)) * CELL_SIZE_F;
+        let min = state.pos.to_vec2() * CELL_SIZE_F - size * 0.5;
         let max = min + size;
         let rect = Rect {
             min: min.to_pos2(),
@@ -33,16 +33,10 @@ impl Raccoon {
         } else {
             Color32::from_rgb(31, 255, 31)
         };
-        render_bar(
-            (state.pos.to_vec2() - Vec2::new(0.5, 0.5)) * CELL_SIZE_F,
-            state.satiety,
-            bar_color,
-            painter,
-            to_screen,
-        );
+        render_bar(min, state.satiety, bar_color, painter, to_screen);
 
         render_bar(
-            (state.pos.to_vec2() - Vec2::new(0.5, 0.5)) * CELL_SIZE_F + Vec2::Y * 5.,
+            min + Vec2::Y * 5.,
             state.health / MAX_HEALTH,
             Color32::GREEN,
             painter,
