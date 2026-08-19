@@ -51,7 +51,7 @@ fn go_to_corn() -> i64 {
 var enemy_found: i32 = 0;
 var enemy_pos: [i32] = [];
 
-for i in 0..10000 {
+loop {
 
     if get_satiety() < 0.6 {
         go_to_corn();
