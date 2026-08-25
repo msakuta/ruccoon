@@ -15,7 +15,7 @@ use eframe::{
 };
 
 use mascal::Bytecode;
-use rand::RngExt;
+use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
 use crate::{
     bg_image::BgImage,
@@ -101,6 +101,7 @@ impl RuccoonApp {
             items: vec![],
             holes,
             bullets: vec![],
+            rng: SmallRng::seed_from_u64(12211),
         }));
 
         let mut raccoons: HashMap<usize, Raccoon> = HashMap::new();

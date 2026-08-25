@@ -27,8 +27,8 @@ impl RuccoonApp {
             for (i, raccoon) in &self.raccoons {
                 let raccoon = raccoon.state.borrow();
                 let raccoon_pos =
-                    dbg!(to_screen.transform_pos((raccoon.pos.to_vec2() * CELL_SIZE_F).to_pos2()));
-                if dbg!(pos.distance_sq(raccoon_pos)) < (20f32).powi(2) {
+                    to_screen.transform_pos((raccoon.pos.to_vec2() * CELL_SIZE_F).to_pos2());
+                if pos.distance_sq(raccoon_pos) < (20f32).powi(2) {
                     self.selected_raccoon = Some(*i);
                 }
             }

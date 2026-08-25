@@ -396,6 +396,27 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
         TypeDecl::I32,
     );
     proc(
+        "find_path".to_string(),
+        Box::new(move |state, args| {
+            let data = downcast(state)?;
+            let state = data.get()?;
+            let mut state = state.borrow_mut();
+            let app_state = data.app_state.borrow();
+            let arg = args
+                .get(0)
+                .ok_or_else(|| EvalError::Other("find_path needs an argument".to_string()))?;
+            let x = coerce_f32(&arg.array_get(0)?)?;
+            let y = coerce_f32(&arg.array_get(0)?)?;
+            state.path = find_path(
+                [x.round() as i32, y.round() as i32],
+                &app_state.map,
+                &app_state.items,
+            );
+            Ok(Value::I32(state.path.is_some() as i32))
+        }),
+        TypeDecl::I32,
+    );
+    proc(
         "find_path_to_corn".to_string(),
         Box::new(move |state, _| {
             let data = downcast(state)?;
@@ -597,6 +618,32 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
         "get_cooldown".to_string(),
         get_prop_fn(|state| state.cooldown),
         TypeDecl::I32,
+    );
+
+    proc(
+        "rand".to_string(),
+        Box::new(move |state, args| {
+            let state = downcast(state)?;
+            let mut app_state = state.app_state.borrow_mut();
+            Ok(Value::I32(app_state.rng.random()))
+        }),
+        TypeDecl::I32,
+    );
+
+    proc(
+        "rand2".to_string(),
+        Box::new(move |state, args| {
+            let state = downcast(state)?;
+            let mut app_state = state.app_state.borrow_mut();
+            Ok(Value::Array(ArrayInt::new(
+                TypeDecl::F32,
+                vec![
+                    Value::F32(app_state.rng.random()),
+                    Value::F32(app_state.rng.random()),
+                ],
+            )))
+        }),
+        TypeDecl::Array(Box::new(TypeDecl::F32), ArraySize::Fixed(2)),
     );
 }
 

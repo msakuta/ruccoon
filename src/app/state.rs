@@ -14,6 +14,7 @@ pub(crate) struct RaccoonAppState {
     pub items: Vec<Pos2>,
     pub holes: Vec<Hole>,
     pub bullets: Vec<Bullet>,
+    pub rng: rand::prelude::SmallRng,
 }
 
 impl RaccoonAppState {

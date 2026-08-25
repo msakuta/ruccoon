@@ -48,6 +48,18 @@ fn go_to_corn() -> i64 {
     0
 }
 
+fn wander() {
+    var this_pos = get_pos();
+    var delta = rand2();
+    var dest_x = this_pos[0] + delta[0] * 10.;
+    var dest_y = this_pos[1] + delta[1] * 10.;
+    var dest: [f32] = [];
+    push(dest, dest_x);
+    push(dest, dest_y);
+
+    find_path(dest);
+}
+
 var enemy_found: i32 = 0;
 var enemy_pos: [i32] = [];
 
@@ -57,6 +69,8 @@ loop {
         go_to_corn();
         yield_(-1);
     };
+
+    wander();
 
     go_to_hole();
     yield_(-1);
