@@ -242,6 +242,9 @@ impl eframe::App for RuccoonApp {
                             )
                         },
                     );
+                if ui.button("Pause").clicked() {
+                    self.paused = !self.paused;
+                }
                 ui.label(format!("Selected: {:?}", self.selected_raccoon));
                 ui.label(format!("Instructions: {instructions}"));
                 eframe::egui::ScrollArea::new([false, true]).show(ui, |ui| {

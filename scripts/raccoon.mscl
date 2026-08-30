@@ -32,9 +32,11 @@ fn go_to_hole() -> i64 {
 }
 
 fn go_to_corn() -> i64 {
-    print("Finding path to corn");
+    var ticks = (rand() * 100) as i32;
 
-    for i in 0..100 {
+    print("Finding path to corn in ", ticks, " ticks");
+
+    for i in 0..ticks {
         if get_satiety() > 0.6 {
             return 0;
         };
@@ -53,9 +55,7 @@ fn wander() {
     var delta = rand2();
     var dest_x = this_pos[0] + delta[0] * 10.;
     var dest_y = this_pos[1] + delta[1] * 10.;
-    var dest: [f32] = [];
-    push(dest, dest_x);
-    push(dest, dest_y);
+    var dest: [f32] = [dest_x, dest_y];
 
     find_path(dest);
 }

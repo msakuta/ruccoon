@@ -675,7 +675,7 @@ fn find_path(start: [i32; 2], map: &[MapCell], items: &[Pos2]) -> Option<Vec<Pat
         pos: start,
         cost: 0,
     });
-    cost_map[(start[0] + start[1] * BOARD_SIZE_I) as usize] = 0;
+    *cost_map.get_mut((start[0] + start[1] * BOARD_SIZE_I) as usize)? = 0;
     while let Some(state) = open_set.pop() {
         if let Some(goal) = items
             .iter()
