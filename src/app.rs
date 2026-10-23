@@ -245,6 +245,14 @@ impl eframe::App for RuccoonApp {
                 if ui.button("Pause").clicked() {
                     self.paused = !self.paused;
                 }
+                if ui
+                    .add_enabled(self.selected_raccoon.is_some(), egui::Button::new("Delete"))
+                    .clicked()
+                    && let Some(raccoon) = self.selected_raccoon
+                {
+                    self.raccoons.remove(&raccoon);
+                    self.selected_raccoon = None;
+                }
                 ui.label(format!("Selected: {:?}", self.selected_raccoon));
                 ui.label(format!("Instructions: {instructions}"));
                 eframe::egui::ScrollArea::new([false, true]).show(ui, |ui| {
