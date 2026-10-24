@@ -186,22 +186,20 @@ impl RuccoonApp {
                 }
             }
 
-            // self.paused = true;
-        }
-
-        let mut rng = rand::rng();
-        let mut app_state = self.app_state.borrow_mut();
-        if app_state.items.len() < 10 && rng.random::<f64>() < 0.1 {
-            let pos = generate_pos(|pos| is_blocked(pos, &app_state.map, &app_state.items));
-            let items = &mut app_state.items;
-            if items.iter().all(|item| *item != pos) {
-                items.push(pos);
+            let mut rng = rand::rng();
+            let mut app_state = self.app_state.borrow_mut();
+            if app_state.items.len() < 10 && rng.random::<f64>() < 0.1 {
+                let pos = generate_pos(|pos| is_blocked(pos, &app_state.map, &app_state.items));
+                let items = &mut app_state.items;
+                if items.iter().all(|item| *item != pos) {
+                    items.push(pos);
+                }
             }
-        }
 
-        let mut bullets = std::mem::take(&mut app_state.bullets);
-        bullets.retain_mut(|bullet| bullet.animate(&app_state.raccoons));
-        app_state.bullets = bullets;
+            let mut bullets = std::mem::take(&mut app_state.bullets);
+            bullets.retain_mut(|bullet| bullet.animate(&app_state.raccoons));
+            app_state.bullets = bullets;
+        }
     }
 }
 

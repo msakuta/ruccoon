@@ -32,7 +32,7 @@ fn go_to_hole() -> i64 {
 }
 
 fn go_to_corn() -> i64 {
-    var ticks = (rand() * 100) as i32;
+    var ticks = rand() % 100;
 
     print("Finding path to corn in ", ticks, " ticks");
 
