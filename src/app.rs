@@ -30,6 +30,7 @@ pub(crate) const BOARD_SIZE: usize = 24;
 pub(crate) const BOARD_SIZE_I: i32 = BOARD_SIZE as i32;
 const RETRIES: usize = 10;
 pub(crate) const PANEL_MIN_WIDTH: f32 = 200.;
+pub(crate) const FRAME_TIME: std::time::Duration = std::time::Duration::from_millis(50);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MapCell {
@@ -205,11 +206,11 @@ impl RuccoonApp {
 
 impl eframe::App for RuccoonApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
-        ctx.request_repaint_after(std::time::Duration::from_millis(50));
+        ctx.request_repaint_after(FRAME_TIME);
         let now = std::time::Instant::now();
         if !self
             .last_animate
-            .is_some_and(|time| !(std::time::Duration::from_millis(50) < now - time))
+            .is_some_and(|time| !(FRAME_TIME < now - time))
         {
             self.animate();
             self.last_animate = Some(now);

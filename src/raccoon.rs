@@ -19,7 +19,7 @@ use mascal::{
 use rand::{RngExt, rngs::ThreadRng};
 
 use crate::{
-    app::{BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F, MapCell, RaccoonAppState},
+    app::{BOARD_SIZE, BOARD_SIZE_I, CELL_SIZE_F, FRAME_TIME, MapCell, RaccoonAppState},
     bullet::Bullet,
 };
 
@@ -31,7 +31,7 @@ const DIRECTIONS: [Vec2; 4] = [
 ];
 
 const CORN_ENERGY: f32 = 0.2;
-const HUNGER_RATE: f32 = 0.005;
+const HUNGER_RATE: f32 = 0.005 * FRAME_TIME.as_secs_f32();
 const SHOOT_COOLDOWN: i32 = 5;
 const MAX_HEALTH: f32 = 10.;
 
@@ -622,7 +622,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
 
     proc(
         "rand".to_string(),
-        Box::new(move |state, args| {
+        Box::new(move |state, _args| {
             let state = downcast(state)?;
             let mut app_state = state.app_state.borrow_mut();
             Ok(Value::I32(app_state.rng.random()))
@@ -632,7 +632,7 @@ fn extend_funcs(mut proc: impl FnMut(String, NativeFn, TypeDecl)) {
 
     proc(
         "rand2".to_string(),
-        Box::new(move |state, args| {
+        Box::new(move |state, _args| {
             let state = downcast(state)?;
             let mut app_state = state.app_state.borrow_mut();
             Ok(Value::Array(ArrayInt::new(
