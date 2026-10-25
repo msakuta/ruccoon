@@ -1,12 +1,8 @@
-# Ruccoon
+# Squad-rs
 
-A simple simulator game project demonstrating [Ruscal](https://github.com/msakuta/ruscal) scripting language.
+A shooter simulator game project demonstrating [Mascal](https://github.com/msakuta/mascal) scripting language.
 
-Each agent (raccoon) walks around the map searching for food and once it gets one, it will return to a nest hole.
-
-This project is a demonstration of utilizing a script language as a state machine description to design this kind of simulation easily.
-
-![screenshot](images/screenshot.png)
+Each agent fights independently.
 
 
 ## How to run
