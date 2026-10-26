@@ -253,6 +253,18 @@ impl eframe::App for RuccoonApp {
                     self.selected_raccoon = None;
                 }
                 ui.label(format!("Selected: {:?}", self.selected_raccoon));
+                let selected_agent = self
+                    .selected_raccoon
+                    .and_then(|r| self.raccoons.get(&r))
+                    .map(|r| r.state.borrow());
+                ui.label(format!(
+                    "Satiety: {:?}",
+                    selected_agent.as_ref().map(|r| r.satiety)
+                ));
+                ui.label(format!(
+                    "Health: {:?}",
+                    selected_agent.as_ref().map(|r| r.health)
+                ));
                 ui.label(format!("Instructions: {instructions}"));
                 eframe::egui::ScrollArea::new([false, true]).show(ui, |ui| {
                     ui.text_edit_multiline(&mut text);
